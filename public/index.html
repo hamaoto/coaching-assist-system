@@ -1,0 +1,163 @@
+<div id="section-students" class="content-section" style="display: none;">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-2">
+        <h2><i class="bi bi-people-fill"></i> 生徒情報</h2>
+        <button class="btn btn-primary" onclick="openAddStudentModal()">+ 新規生徒登録</button>
+    </div>
+    <div class="row h-100">
+        <div class="col-md-3">
+            <div class="list-group shadow-sm" id="student-list-group" style="max-height: 70vh; overflow-y: auto;"></div>
+        </div>
+        <div class="col-md-9">
+            <div id="student-select-msg" class="alert alert-info text-center mt-5">
+                <i class="bi bi-arrow-left-circle"></i> 左のリストから生徒を選択してください
+            </div>
+            
+            <div id="student-detail-view" class="card shadow-sm" style="display: none;">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-basic">基本情報</a></li>
+                        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-reports">過去レポート</a></li>
+                        <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tab-profile">プロファイリングシート</a></li>
+                    </ul>
+                </div>
+                <div class="card-body tab-content p-4" style="max-height: 70vh; overflow-y: auto;">
+                    
+                    <div class="tab-pane fade show active" id="tab-basic">
+                        <div id="student-info-display">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3 id="detail-name" class="fw-bold m-0"></h3>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="toggleEditMode()"><i class="bi bi-pencil"></i> 編集</button>
+                            </div>
+                            <table class="table table-bordered">
+                                <tr><th style="width: 30%;" class="bg-light">学年</th><td id="detail-grade"></td></tr>
+                                <tr><th class="bg-light">学校</th><td id="detail-school"></td></tr>
+                                <tr><th class="bg-light">志望校</th><td id="detail-target-school"></td></tr>
+                                <tr><th class="bg-light">メモ</th><td id="detail-memo" style="white-space: pre-wrap;"></td></tr>
+                            </table>
+                        </div>
+                        <div id="student-info-edit" style="display:none;">
+                            <div class="mb-2"><label>名前</label><input type="text" id="edit-name" class="form-control"></div>
+                            <div class="mb-2"><label>学年</label><select id="edit-grade" class="form-select"></select></div>
+                            <div class="mb-2"><label>学校</label><input type="text" id="edit-school" class="form-control"></div>
+                            <div class="mb-2"><label>志望校</label><input type="text" id="edit-target-school" class="form-control"></div>
+                            <div class="mb-2"><label>メモ</label><textarea id="edit-memo" class="form-control" rows="3"></textarea></div>
+                            <div class="d-flex gap-2 justify-content-end">
+                                <button class="btn btn-secondary" onclick="toggleEditMode()">キャンセル</button>
+                                <button class="btn btn-primary" onclick="saveStudentInfo()">保存</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="tab-pane fade" id="tab-reports"><div id="student-reports-list" class="list-group list-group-flush"></div></div>
+                    
+                    <div class="tab-pane fade" id="tab-profile">
+                        <p class="text-muted small mb-4">※ 入力内容は自動保存されません。最後に必ず「保存」ボタンを押してください。</p>
+                        
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 2. 現状（得意・不得意 / 状態の整理）</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6"><label class="form-label">得意なこと（強み）</label><textarea id="prof-strength" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">苦手なこと（弱み）</label><textarea id="prof-weakness" class="form-control" rows="2"></textarea></div>
+                                <div class="col-12"><label class="form-label">現在の状況を一言で言うと？</label><input type="text" id="prof-status-summary" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">今の行動量</label><input type="text" id="prof-action-amount" class="form-control" placeholder="例: 週3回ジム、毎日30分勉強"></div>
+                                <div class="col-md-6"><label class="form-label">現状の問題だと思う点</label><input type="text" id="prof-current-problem" class="form-control"></div>
+                                <div class="col-12"><label class="form-label">行動のクセ・パターン</label><input type="text" id="prof-habit-pattern" class="form-control" placeholder="例: 後回しにする / 集中が続かない"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 3. 理想（目標）</h5>
+                            <div class="row g-3">
+                                <div class="col-12"><label class="form-label">理想の状態（1ヶ月後 / 半年後 / 1年後）</label><textarea id="prof-ideal-state" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">達成したい具体的なこと</label><textarea id="prof-specific-goal" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">その理想を達成したい理由</label><textarea id="prof-reason" class="form-control" rows="2"></textarea></div>
+                                <div class="col-12"><label class="form-label">数値化できる目標（あれば）</label><input type="text" id="prof-numeric-goal" class="form-control"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 4. 価値観・モチベーション源泉</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6"><label class="form-label">やる気が出る瞬間</label><input type="text" id="prof-motivation-up" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">継続できるときの特徴</label><input type="text" id="prof-continue-feature" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">モチベーションが落ちる要因</label><input type="text" id="prof-motivation-down" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">好きな学び方／行動スタイル</label><input type="text" id="prof-learning-style" class="form-control" placeholder="例: 短時間・集中的・朝型"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 5. 生活リズム・環境</h5>
+                            <div class="row g-3">
+                                <div class="col-12"><label class="form-label">1日のスケジュール感</label><textarea id="prof-daily-schedule" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">忙しい時間帯 / 空いている時間帯</label><input type="text" id="prof-busy-free-time" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">行動に影響する環境</label><input type="text" id="prof-environment" class="form-control" placeholder="例: 家がうるさい / 机がない"></div>
+                                <div class="col-md-6"><label class="form-label">SNS / スマホ習慣</label><input type="text" id="prof-sns-habit" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">サポートしてくれる人の有無</label><input type="text" id="prof-supporter" class="form-control"></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 6. 強み・弱みの客観評価（1〜5で評価）</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">継続力: <span id="val-persistence">3</span></label>
+                                    <input type="range" class="form-range" min="1" max="5" id="prof-eval-persistence" oninput="document.getElementById('val-persistence').innerText = this.value">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">計画性: <span id="val-planning">3</span></label>
+                                    <input type="range" class="form-range" min="1" max="5" id="prof-eval-planning" oninput="document.getElementById('val-planning').innerText = this.value">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">行動力: <span id="val-action">3</span></label>
+                                    <input type="range" class="form-range" min="1" max="5" id="prof-eval-action" oninput="document.getElementById('val-action').innerText = this.value">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">集中力: <span id="val-focus">3</span></label>
+                                    <input type="range" class="form-range" min="1" max="5" id="prof-eval-focus" oninput="document.getElementById('val-focus').innerText = this.value">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">メンタルの安定度: <span id="val-mental">3</span></label>
+                                    <input type="range" class="form-range" min="1" max="5" id="prof-eval-mental" oninput="document.getElementById('val-mental').innerText = this.value">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 7. 過去の成功体験</h5>
+                            <div class="row g-3">
+                                <div class="col-12"><label class="form-label">達成したこと</label><textarea id="prof-past-success" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">その時、何がうまくいったか（成功パターン）</label><textarea id="prof-success-pattern" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">逆に続かなかった理由（失敗パターン）</label><textarea id="prof-failure-pattern" class="form-control" rows="2"></textarea></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 8. 固定項目・KPI</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6"><label class="form-label">長期課題（変わりにくい課題）</label><textarea id="prof-long-issue" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">伸ばすべき強み</label><textarea id="prof-long-strength" class="form-control" rows="2"></textarea></div>
+                                <div class="col-12"><label class="form-label">繰り返し出やすい問題</label><input type="text" id="prof-repeat-problem" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">年間のKPI</label><textarea id="prof-kpi" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">長期的な方向性</label><textarea id="prof-direction" class="form-control" rows="2"></textarea></div>
+                            </div>
+                        </div>
+
+                        <div class="mb-4">
+                            <h5 class="fw-bold text-primary border-bottom pb-2">◆ 9. 注意事項（任意）</h5>
+                            <div class="row g-3">
+                                <div class="col-12"><label class="form-label">健康状態やライフステージの制約</label><input type="text" id="prof-health-constraint" class="form-control"></div>
+                                <div class="col-md-6"><label class="form-label">コーチング上の配慮事項</label><textarea id="prof-coaching-note" class="form-control" rows="2"></textarea></div>
+                                <div class="col-md-6"><label class="form-label">トリガー（落ち込みやすくなる要因）</label><input type="text" id="prof-trigger" class="form-control"></div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2 mb-5">
+                            <button class="btn btn-primary btn-lg" onclick="saveProfileData()">プロファイリング情報を保存</button>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

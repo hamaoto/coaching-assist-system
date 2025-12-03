@@ -1,0 +1,276 @@
+body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    background-color: #f0f2f5;
+    margin: 0;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.container {
+    background-color: #ffffff;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 700px;
+    text-align: left;
+}
+
+h1 {
+    color: #1c1e21;
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 28px;
+}
+
+.section {
+    margin-bottom: 40px;
+}
+
+h2 {
+    color: #333;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #007bff;
+    padding-bottom: 8px;
+    font-size: 20px;
+}
+
+p {
+    color: #555;
+    margin-bottom: 15px;
+    line-height: 1.6;
+}
+
+#plan-container {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    margin-bottom: 20px;
+}
+
+.plan-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    background-color: #fdfdfd;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.plan-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.plan-card-header select {
+    flex-grow: 1;
+    margin-right: 15px;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 18px;
+    font-weight: bold;
+    background-color: #fff;
+}
+
+.plan-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.plan-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+    resize: vertical;
+    min-height: 50px;
+    box-sizing: border-box;
+}
+
+.static-input-group {
+    margin-bottom: 20px;
+}
+
+.static-input-group label {
+    display: block;
+    font-weight: bold;
+    color: #444;
+    margin-bottom: 8px;
+}
+
+.add-button, .remove-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    width: 30px;
+    height: 30px;
+    font-size: 20px;
+    font-weight: bold;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color .2s ease, transform .2s ease;
+    flex-shrink: 0;
+}
+
+.remove-button {
+    background-color: #dc3545;
+    font-size: 16px;
+}
+
+.add-button:hover, .remove-button:hover {
+    transform: scale(1.1);
+}
+
+.main-button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    width: 100%;
+    font-size: 18px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color .2s ease;
+    margin-bottom: 20px;
+}
+
+.main-button:hover {
+    background-color: #218838;
+}
+
+.output-box {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    margin-bottom: 20px;
+}
+
+.output-box:last-child {
+    margin-bottom: 0;
+}
+
+.output-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ccc;
+}
+
+.output-box h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.copy-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 5px 12px;
+    font-size: 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.copy-button:hover {
+    background-color: #0056b3;
+}
+
+.output-box pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 16px;
+    line-height: 1.8;
+    color: #333;
+    background-color: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-family: inherit;
+}
+
+/* public/style.css */
+body {
+    font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    overflow: hidden; 
+}
+.container-fluid {
+    height: 100vh;
+    overflow-y: auto;
+}
+a { text-decoration: none; }
+.output-box pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: inherit;
+    color: #333;
+    margin: 0;
+}
+.fc { font-size: 0.9em; }
+
+/* --- 追加: レポート一覧グリッド --- */
+.report-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+.report-card-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    height: 200px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.report-card-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+.report-card-new {
+    border: 2px dashed #007bff;
+    background-color: #f8faff;
+    align-items: center;
+    justify-content: center;
+    color: #007bff;
+}
+.report-card-new i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+}
+.report-card-date {
+    font-size: 0.85rem;
+    color: #666;
+}
+.report-card-name {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-top: 5px;
+}
+.report-card-preview {
+    font-size: 0.85rem;
+    color: #888;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}

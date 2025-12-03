@@ -6,7 +6,7 @@ let allStudents = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     loadStudents(); 
-    setupReportForm(); // 名前変更: Generator -> Form
+    setupReportForm(); 
     setupCalendar();
     
     fetch('/api/user/me').then(res => res.json()).then(data => {
@@ -107,14 +107,11 @@ function addStudent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, grade, school, target_school, memo })
     }).then(res => res.json()).then(() => {
-        // ★修正: リロードせず、リスト更新とモーダル閉じるだけ
         loadStudents();
         bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
         alert('生徒を追加しました');
     });
 }
-
-// ... (前略: loadStudentsなどは変更なし) ...
 
 // プロファイリングシートの全フィールドIDリスト
 const profileFieldIds = [
@@ -143,7 +140,7 @@ function selectStudent(student) {
     document.getElementById('detail-target-school').textContent = student.target_school || '-';
     document.getElementById('detail-memo').textContent = student.memo;
     
-    // ★変更: プロファイリングデータの読み込み
+    // プロファイリングデータの読み込み
     let profileData = {};
     try {
         if (student.profile_data) {
@@ -158,7 +155,6 @@ function selectStudent(student) {
         const el = document.getElementById(id);
         if (el) {
             el.value = profileData[id] || (el.type === 'range' ? '3' : ''); // rangeはデフォルト3
-            // rangeの場合は横の数値表示も更新
             if (el.type === 'range') {
                 const valSpan = document.getElementById(id.replace('prof-eval-', 'val-'));
                 if (valSpan) valSpan.innerText = el.value;
@@ -179,11 +175,9 @@ function selectStudent(student) {
     });
 }
 
-// ★追加: プロファイリングデータの保存
 function saveProfileData() {
     if(!selectedStudentId) return;
     
-    // 全フィールドから値を収集
     const data = {};
     profileFieldIds.forEach(id => {
         const el = document.getElementById(id);
@@ -196,19 +190,15 @@ function saveProfileData() {
         body: JSON.stringify({ profileData: data })
     }).then(() => {
         alert('プロファイリング情報を保存しました');
-        // キャッシュ更新
         const s = allStudents.find(st => st.id === selectedStudentId);
         if(s) s.profile_data = JSON.stringify(data);
     });
 }
 
-// ... (後略: saveStudentInfoなどは変更なし) ...
-
 function toggleEditMode() {
     const display = document.getElementById('student-info-display');
     const edit = document.getElementById('student-info-edit');
     if (edit.style.display === 'none') {
-        // 編集開始
         document.getElementById('edit-name').value = document.getElementById('detail-name').textContent;
         const currentGrade = document.getElementById('detail-grade').textContent;
         const editGradeSelect = document.getElementById('edit-grade');
@@ -240,11 +230,10 @@ function saveStudentInfo() {
         body: JSON.stringify(body)
     }).then(res => res.json()).then(() => {
         alert('更新しました');
-        // データ再取得して表示更新
         const updatedStudent = allStudents.find(s => s.id === selectedStudentId);
-        if(updatedStudent) Object.assign(updatedStudent, body); // キャッシュ更新
+        if(updatedStudent) Object.assign(updatedStudent, body);
         selectStudent({...updatedStudent, ...body}); 
-        loadStudents(); // リスト名更新のため
+        loadStudents(); 
     });
 }
 
@@ -260,14 +249,14 @@ function saveStudentSheet() {
     }).then(() => alert('シートを保存しました'));
 }
 
-// --- レポート機能 (刷新) ---
+// --- レポート機能 ---
 
 // 1. レポート一覧表示
 function loadReportList() {
     const container = document.getElementById('report-grid-container');
     container.innerHTML = '';
 
-    // A. 新規作成ボタン (最初のブロック)
+    // A. 新規作成ボタン
     const newBtn = document.createElement('div');
     newBtn.className = 'report-card-item report-card-new';
     newBtn.innerHTML = '<i class="bi bi-plus-circle"></i><div>新規レポートを作成</div>';
@@ -293,7 +282,6 @@ function loadReportList() {
                     </div>
                     <div class="report-card-preview text-muted mt-2">${preview}</div>
                 `;
-                // クリックで編集モードへ
                 card.onclick = () => openReportForm(report);
                 container.appendChild(card);
             });
@@ -305,7 +293,6 @@ function startNewReport() {
     const studentId = document.getElementById('modal-student-select').value;
     if (!studentId) return;
     
-    // 生徒情報を取得してフォームを開く
     const student = allStudents.find(s => s.id == studentId);
     bootstrap.Modal.getInstance(document.getElementById('selectStudentModal')).hide();
     
@@ -322,7 +309,6 @@ function openReportForm(report = null, student = null) {
     const saveBtn = document.getElementById('save-report-btn');
     const editBtn = document.getElementById('edit-mode-btn');
 
-    // フォームリセット
     resetForm();
 
     if (report) {
@@ -332,10 +318,8 @@ function openReportForm(report = null, student = null) {
         document.getElementById('report-student-display').value = report.student_name;
         document.getElementById('report-next-date').value = report.next_training_date || '';
         
-        // コンテンツ解析してフォームに埋め込む
         parseContentToForm(report.content);
         
-        // UI制御: 最初は入力不可にするなどの工夫もできるが、シンプルに「編集ボタン」で切替
         disableForm(true);
         saveBtn.style.display = 'none';
         editBtn.style.display = 'block';
@@ -434,16 +418,14 @@ function setupReportForm() {
         let fullText = "";
         const appendBox = (title, lines) => {
             if(lines.length===0) return;
-            // 画面表示用
             const boxDiv = document.createElement('div');
             boxDiv.className = 'output-box mb-3 p-3 bg-white border rounded';
             boxDiv.innerHTML = `<h5 class="fs-6 fw-bold">${title}</h5><pre class="bg-light p-2 rounded">${lines.join('\n\n')}</pre>`;
             outputContainer.appendChild(boxDiv);
-            // 保存テキスト用
             fullText += `${title}\n${lines.join('\n\n')}\n\n`;
         };
         
-        outputContainer.innerHTML = ''; // クリア
+        outputContainer.innerHTML = ''; 
 
         // 固定項目収集
         const hw = document.getElementById('homework-review').value.trim();
@@ -484,36 +466,25 @@ function setupReportForm() {
             method: method,
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body)
-        }).then(() => {
+        })
+        .then(res => res.json())
+        .then(data => {
             alert('保存しました');
-            closeReportForm();
-            loadReportList(); // 一覧更新
+            
+            // ★ポイント: 画面を閉じず、新規の場合はIDをセットして編集モードに移行
+            if (!reportId && data.id) {
+                document.getElementById('report-id').value = data.id;
+                document.getElementById('report-form-title').textContent = 'レポート編集';
+            }
+            
+            loadReportList(); 
+            if(calendar) calendar.refetchEvents();
         });
     });
 }
 
-// 簡易的なテキスト解析（保存されたテキストからフォームへ復元）
 function parseContentToForm(text) {
-    // 固定項目の抽出
-    const extract = (header) => {
-        const regex = new RegExp(`【${header}】\\n([\\s\\S]*?)(?=\\n\\n【|$)`);
-        const match = text.match(regex);
-        return match ? match[1].trim() : '';
-    };
-    
-    // 宿題・テストなど（簡易実装: 先頭行のみ取得などで妥協せず、ある程度マッピング）
-    // ※テキストデータの構造化保存をしていないため、完全な復元は難しいですが、
-    // ここでは「特記事項」などのブロックから値を拾うロジックを簡易的に書きます。
-    // 実用上はJSONで詳細データを保存するカラムをDBに追加するのがベストですが、今回は既存テキストから頑張って復元します。
-    
-    // この関数は非常に複雑になるため、今回は「入力欄を空にして、元のテキストを表示エリアに出す」
-    // あるいは「新しいカードを1つ作る」程度の挙動にとどめます。
-    // 本格的にやるならDBに content_json カラムが必要です。
-    
-    // 今回の要件では「編集」ボタンがあるので、空のカードを1つ出すだけにしておきます。
     createPlanCard(); 
-    
-    // その代わり、元のテキストを参照用に表示
     const outputContainer = document.getElementById('output-container');
     outputContainer.innerHTML = `<div class="alert alert-info">過去のデータ:<br><pre>${text}</pre></div>`;
 }
@@ -522,10 +493,9 @@ function resetForm() {
     document.getElementById('plan-container').innerHTML = '';
     document.querySelectorAll('#report-form-view textarea').forEach(t => t.value = '');
     document.getElementById('report-next-date').value = '';
-    createPlanCard(); // デフォルト1枚
+    createPlanCard(); 
 }
 
-// --- カレンダー ---
 function setupCalendar() {
     const calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {

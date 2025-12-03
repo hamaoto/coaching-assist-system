@@ -1,4 +1,3 @@
-// ... (前半のimportなどは変更なし) ...
 const express = require('express');
 const bodyParser = require('body-parser');
 const session = require('express-session');
@@ -9,10 +8,6 @@ const path = require('path');
 const app = express();
 const PORT = 3001;
 
-// サーバーがどこで動いているか確認するログ
-console.log('現在の実行フォルダ:', process.cwd());
-console.log('データベースファイルの場所:', path.resolve('./reports.db'));
-
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
@@ -22,13 +17,13 @@ app.use(session({
 }));
 app.use(express.static('public', { index: false }));
 
-// ... (認証周りのAPIなどは変更なし) ...
-
+// --- ページ制御 ---
 app.get('/', (req, res) => {
     if (req.session.userId) res.sendFile(path.join(__dirname, 'public', 'index.html'));
     else res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// --- 認証API ---
 app.get('/api/user/me', (req, res) => {
     if (!req.session.userId) return res.status(401).json({ error: '未ログイン' });
     db.get('SELECT email FROM users WHERE id = ?', [req.session.userId], (err, row) => {
@@ -81,9 +76,9 @@ app.get('/api/students', (req, res) => {
 
 app.post('/api/students', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    const { name, grade, school, target_school, memo } = req.body;
-    const stmt = db.prepare('INSERT INTO students (name, grade, school, target_school, memo) VALUES (?, ?, ?, ?, ?)');
-    stmt.run(name, grade, school, target_school, memo, function(err) {
+    const { name, grade, school, target_school, category, memo } = req.body;
+    const stmt = db.prepare('INSERT INTO students (name, grade, school, target_school, category, memo) VALUES (?, ?, ?, ?, ?, ?)');
+    stmt.run(name, grade, school, target_school, category, memo, function(err) {
         if (err) return res.status(500).json({ error: '保存失敗' });
         res.json({ id: this.lastID, message: '追加成功' });
     });
@@ -91,21 +86,20 @@ app.post('/api/students', (req, res) => {
 
 app.put('/api/students/:id', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    const { name, grade, school, target_school, memo } = req.body;
-    const stmt = db.prepare('UPDATE students SET name = ?, grade = ?, school = ?, target_school = ?, memo = ? WHERE id = ?');
-    stmt.run(name, grade, school, target_school, memo, req.params.id, function(err) {
+    const { name, grade, school, target_school, category, is_hidden, memo } = req.body;
+    const stmt = db.prepare(`
+        UPDATE students 
+        SET name = ?, grade = ?, school = ?, target_school = ?, category = ?, is_hidden = ?, memo = ? 
+        WHERE id = ?
+    `);
+    stmt.run(name, grade, school, target_school, category, is_hidden, memo, req.params.id, function(err) {
         if (err) return res.status(500).json({ error: '更新失敗' });
         res.json({ message: '更新成功' });
     });
 });
 
-// ... (前略)
-
-// ★追加: 生徒の削除
 app.delete('/api/students/:id', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    
-    // 生徒を削除 (関連するレポートも消すのが理想ですが、今回は生徒のみ削除します)
     const stmt = db.prepare('DELETE FROM students WHERE id = ?');
     stmt.run(req.params.id, function(err) {
         if (err) return res.status(500).json({ error: '削除失敗' });
@@ -113,15 +107,10 @@ app.delete('/api/students/:id', (req, res) => {
     });
 });
 
-// ... (後略)
-
-// ★変更: プロファイリングデータ(JSON)を保存
 app.post('/api/students/:id/profile', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    // profileDataはオブジェクトとして受け取るが、DBには文字列として保存
     const { profileData } = req.body;
     const jsonStr = JSON.stringify(profileData);
-    
     const stmt = db.prepare('UPDATE students SET profile_data = ? WHERE id = ?');
     stmt.run(jsonStr, req.params.id, function(err) {
         if (err) return res.status(500).json({ error: '更新失敗' });
@@ -137,7 +126,42 @@ app.get('/api/students/:id/reports', (req, res) => {
     });
 });
 
-// --- レポート管理 API (変更なし) ---
+// --- ★新規追加: 生徒個別イベントAPI ---
+app.get('/api/students/:id/events', (req, res) => {
+    if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
+    db.all('SELECT * FROM student_events WHERE student_id = ?', [req.params.id], (err, rows) => {
+        if (err) return res.status(500).json({ error: '取得失敗' });
+        // FullCalendar形式に変換
+        const events = rows.map(row => ({
+            id: row.id,
+            title: row.title,
+            start: row.start_date,
+            color: row.color || '#3788d8'
+        }));
+        res.json(events);
+    });
+});
+
+app.post('/api/students/:id/events', (req, res) => {
+    if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
+    const { title, start, color } = req.body;
+    const stmt = db.prepare('INSERT INTO student_events (student_id, title, start_date, color) VALUES (?, ?, ?, ?)');
+    stmt.run(req.params.id, title, start, color, function(err) {
+        if (err) return res.status(500).json({ error: '保存失敗' });
+        res.json({ message: '保存成功', id: this.lastID });
+    });
+});
+
+app.delete('/api/events/:id', (req, res) => {
+    if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
+    const stmt = db.prepare('DELETE FROM student_events WHERE id = ?');
+    stmt.run(req.params.id, function(err) {
+        if (err) return res.status(500).json({ error: '削除失敗' });
+        res.json({ message: '削除成功' });
+    });
+});
+
+// --- レポート管理 API ---
 app.get('/api/reports', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
     const sql = `SELECT r.*, s.name as student_name FROM reports r LEFT JOIN students s ON r.student_id = s.id ORDER BY r.created_at DESC`;
@@ -149,9 +173,9 @@ app.get('/api/reports', (req, res) => {
 
 app.post('/api/reports', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    const { studentId, nextDate, content } = req.body;
-    const stmt = db.prepare('INSERT INTO reports (user_id, student_id, next_training_date, content) VALUES (?, ?, ?, ?)');
-    stmt.run(req.session.userId, studentId, nextDate, content, function(err) {
+    const { studentId, reportType, nextDate, content } = req.body;
+    const stmt = db.prepare('INSERT INTO reports (user_id, student_id, report_type, next_training_date, content) VALUES (?, ?, ?, ?, ?)');
+    stmt.run(req.session.userId, studentId, reportType, nextDate, content, function(err) {
         if (err) return res.status(500).json({ error: '保存失敗' });
         res.json({ message: '保存成功', id: this.lastID });
     });
@@ -159,26 +183,57 @@ app.post('/api/reports', (req, res) => {
 
 app.put('/api/reports/:id', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    const { nextDate, content } = req.body;
-    const stmt = db.prepare('UPDATE reports SET next_training_date = ?, content = ? WHERE id = ?');
-    stmt.run(nextDate, content, req.params.id, function(err) {
+    const { reportType, nextDate, content } = req.body;
+    const stmt = db.prepare('UPDATE reports SET report_type = ?, next_training_date = ?, content = ? WHERE id = ?');
+    stmt.run(reportType, nextDate, content, req.params.id, function(err) {
         if (err) return res.status(500).json({ error: '更新失敗' });
         res.json({ message: '更新成功' });
     });
 });
 
-app.get('/api/calendar-events', (req, res) => {
+app.delete('/api/reports/:id', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
-    const sql = `SELECT r.id, r.next_training_date, s.name as student_name FROM reports r JOIN students s ON r.student_id = s.id WHERE r.next_training_date IS NOT NULL`;
-    db.all(sql, [], (err, rows) => {
+    const stmt = db.prepare('DELETE FROM reports WHERE id = ?');
+    stmt.run(req.params.id, function(err) {
+        if (err) return res.status(500).json({ error: '削除失敗' });
+        res.json({ message: '削除成功' });
+    });
+});
+
+// ★修正: 全体カレンダー (レポートの次回特訓日 + 生徒の予定)
+app.get('/api/calendar-events', async (req, res) => {
+    if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
+    
+    // 1. 次回特訓日
+    const reportSql = `SELECT r.id, r.next_training_date, s.name as student_name FROM reports r JOIN students s ON r.student_id = s.id WHERE r.next_training_date IS NOT NULL`;
+    
+    // 2. 生徒の予定
+    const eventSql = `SELECT e.id, e.title, e.start_date, e.color, s.name as student_name FROM student_events e JOIN students s ON e.student_id = s.id`;
+
+    db.all(reportSql, [], (err, reportRows) => {
         if (err) return res.status(500).json({ error: '取得失敗' });
-        const events = rows.map(row => ({
-            id: row.id,
-            title: `${row.student_name} 特訓`,
-            start: row.next_training_date,
-            color: '#007bff'
-        }));
-        res.json(events);
+        
+        db.all(eventSql, [], (err, eventRows) => {
+            if (err) return res.status(500).json({ error: '取得失敗' });
+
+            // 特訓イベント
+            const reports = reportRows.map(row => ({
+                id: 'report_' + row.id, // ID重複防止
+                title: `${row.student_name} 特訓`,
+                start: row.next_training_date,
+                color: '#007bff'
+            }));
+
+            // 生徒予定イベント
+            const events = eventRows.map(row => ({
+                id: 'event_' + row.id,
+                title: `${row.student_name} ${row.title}`, // 名前 + 予定名
+                start: row.start_date,
+                color: row.color || '#28a745' // デフォルトは緑
+            }));
+
+            res.json([...reports, ...events]);
+        });
     });
 });
 

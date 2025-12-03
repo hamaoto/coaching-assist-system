@@ -1,9 +1,11 @@
-let calendar; 
+let calendar; // 全体カレンダー
+let studentCalendar; // 生徒個別カレンダー
 let selectedStudentId = null;
 const gradeOptions = ['小1','小2','小3','小4','小5','小6','中1','中2','中3','高1','高2','高3','既卒','社会人','その他'];
 let allStudents = [];
 
 document.addEventListener('DOMContentLoaded', function() {
+    setupOptions();
     loadStudents(); 
     setupReportForm(); 
     setupCalendar();
@@ -17,8 +19,22 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/logout', { method: 'POST' }).then(() => location.href = '/');
     });
 
-    [document.getElementById('new-grade'), document.getElementById('edit-grade')].forEach(sel => {
+    // カレンダータブが表示されたら再描画 (表示崩れ防止)
+    const tabEl = document.querySelector('a[data-bs-toggle="tab"][href="#tab-calendar"]');
+    if(tabEl){
+        tabEl.addEventListener('shown.bs.tab', function () {
+            if (studentCalendar) studentCalendar.render();
+        });
+    }
+
+    showSection('report');
+});
+
+function setupOptions() {
+    const grades = [document.getElementById('new-grade'), document.getElementById('edit-grade')];
+    grades.forEach(sel => {
         if(sel) {
+            sel.innerHTML = '<option value="" disabled selected>選択</option>';
             gradeOptions.forEach(g => {
                 const opt = document.createElement('option');
                 opt.value = g;
@@ -27,9 +43,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     });
-
-    showSection('report');
-});
+}
 
 function showSection(sectionId) {
     document.querySelectorAll('.content-section').forEach(el => el.style.display = 'none');
@@ -43,6 +57,8 @@ function showSection(sectionId) {
         loadReportList(); 
         closeReportForm();
     } else if (sectionId === 'calendar' && calendar) {
+        // 画面切り替え時に最新情報を再取得
+        calendar.refetchEvents();
         setTimeout(() => calendar.render(), 100);
     }
 }
@@ -53,27 +69,70 @@ function loadStudents() {
         .then(res => res.json())
         .then(data => {
             allStudents = data;
-            const list = document.getElementById('student-list-group');
-            const modalSelect = document.getElementById('modal-student-select');
-            
-            list.innerHTML = '';
-            modalSelect.innerHTML = '<option value="">選択してください...</option>';
-            
-            data.forEach(student => {
-                const item = document.createElement('a');
-                item.href = '#';
-                item.className = 'list-group-item list-group-item-action';
-                item.textContent = student.name;
-                item.onclick = (e) => { e.preventDefault(); selectStudent(student); };
-                list.appendChild(item);
-                
-                const opt = document.createElement('option');
-                opt.value = student.id;
-                opt.textContent = student.name;
-                modalSelect.appendChild(opt);
-            });
+            updateCategoryOptions();
+            renderStudentLists();
         });
 }
+
+function updateCategoryOptions() {
+    const categories = new Set();
+    allStudents.forEach(s => { if(s.category) categories.add(s.category); });
+    const datalist = document.getElementById('category-options');
+    datalist.innerHTML = '';
+    categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        datalist.appendChild(opt);
+    });
+    const filter = document.getElementById('student-category-filter');
+    filter.innerHTML = '<option value="">全てのカテゴリ</option>';
+    categories.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        filter.appendChild(opt);
+    });
+}
+
+function renderStudentLists() {
+    const list = document.getElementById('student-list-group');
+    const hiddenList = document.getElementById('hidden-student-list-group');
+    const modalSelect = document.getElementById('modal-student-select');
+    list.innerHTML = '';
+    hiddenList.innerHTML = '';
+    modalSelect.innerHTML = '<option value="">選択してください...</option>';
+    
+    const searchText = document.getElementById('student-search').value.toLowerCase();
+    const filterCategory = document.getElementById('student-category-filter').value;
+
+    allStudents.forEach(student => {
+        const matchesSearch = student.name.toLowerCase().includes(searchText);
+        const matchesCategory = !filterCategory || student.category === filterCategory;
+        const isHidden = student.is_hidden === 1;
+
+        if (matchesSearch && matchesCategory) {
+            const item = document.createElement('a');
+            item.href = '#';
+            item.className = 'list-group-item list-group-item-action';
+            if (isHidden) {
+                item.classList.add('list-group-item-secondary');
+                item.innerHTML = `<i class="bi bi-eye-slash-fill me-2"></i>${student.name}`;
+            } else {
+                item.textContent = student.name;
+            }
+            item.onclick = (e) => { e.preventDefault(); selectStudent(student); };
+
+            if (isHidden) hiddenList.appendChild(item);
+            else list.appendChild(item);
+        }
+        const opt = document.createElement('option');
+        opt.value = student.id;
+        opt.textContent = student.name + (isHidden ? ' (非表示)' : '');
+        modalSelect.appendChild(opt);
+    });
+}
+
+window.filterStudentList = function() { renderStudentLists(); };
 
 function openAddStudentModal() {
     document.getElementById('new-name').value = '';
@@ -81,12 +140,14 @@ function openAddStudentModal() {
     document.getElementById('new-target-school').value = '';
     document.getElementById('new-memo').value = '';
     document.getElementById('new-grade').selectedIndex = 0;
+    document.getElementById('new-category').value = '';
     new bootstrap.Modal(document.getElementById('addStudentModal')).show();
 }
 
 function addStudent() {
     const name = document.getElementById('new-name').value;
     const grade = document.getElementById('new-grade').value;
+    const category = document.getElementById('new-category').value;
     const school = document.getElementById('new-school').value;
     const target_school = document.getElementById('new-target-school').value;
     const memo = document.getElementById('new-memo').value;
@@ -96,7 +157,7 @@ function addStudent() {
     fetch('/api/students', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, grade, school, target_school, memo })
+        body: JSON.stringify({ name, grade, category, school, target_school, memo })
     }).then(res => res.json()).then(() => {
         loadStudents();
         bootstrap.Modal.getInstance(document.getElementById('addStudentModal')).hide();
@@ -104,27 +165,39 @@ function addStudent() {
     });
 }
 
-// 生徒削除機能
 function deleteStudent() {
     if (!selectedStudentId) return;
     if (!confirm('本当にこの生徒を削除しますか？\nこの操作は取り消せません。')) return;
-
-    fetch(`/api/students/${selectedStudentId}`, {
-        method: 'DELETE'
-    }).then(res => {
-        if (res.ok) {
-            alert('削除しました');
-            location.reload(); 
-        } else {
-            alert('削除に失敗しました');
-        }
+    fetch(`/api/students/${selectedStudentId}`, { method: 'DELETE' }).then(res => {
+        if (res.ok) { alert('削除しました'); location.reload(); } else { alert('削除に失敗しました'); }
     });
 }
 
-// プロファイリングシートの項目ID定義
+function toggleStudentHidden() {
+    if (!selectedStudentId) return;
+    const student = allStudents.find(s => s.id === selectedStudentId);
+    if (!student) return;
+    const newHiddenState = student.is_hidden === 1 ? 0 : 1;
+    if(!confirm(newHiddenState ? '非表示にしますか？' : '表示に戻しますか？')) return;
+
+    const body = {
+        name: student.name, grade: student.grade, school: student.school,
+        target_school: student.target_school, category: student.category,
+        memo: student.memo, is_hidden: newHiddenState
+    };
+    fetch(`/api/students/${selectedStudentId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    }).then(res => res.json()).then(() => {
+        student.is_hidden = newHiddenState; selectStudent(student); renderStudentLists(); 
+        alert(newHiddenState ? '非表示にしました' : '表示に戻しました');
+    });
+}
+
 const profileFieldIds = [
     'prof-strength', 'prof-weakness', 'prof-status-summary', 'prof-action-amount', 'prof-current-problem', 'prof-habit-pattern',
-    'prof-ideal-state', 'prof-specific-goal', 'prof-reason', 'prof-numeric-goal',
+    'prof-ideal-1m', 'prof-ideal-6m', 'prof-ideal-1y', 'prof-ideal-2y', 'prof-ideal-3y', 'prof-ideal-4y', 'prof-ideal-5y',
+    'prof-ideal-10y', 'prof-ideal-20y', 'prof-ideal-30y', 'prof-ideal-death',
+    'prof-specific-goal', 'prof-reason', 'prof-numeric-goal',
     'prof-motivation-up', 'prof-continue-feature', 'prof-motivation-down', 'prof-learning-style',
     'prof-daily-schedule', 'prof-busy-free-time', 'prof-environment', 'prof-sns-habit', 'prof-supporter',
     'prof-eval-persistence', 'prof-eval-planning', 'prof-eval-action', 'prof-eval-focus', 'prof-eval-mental',
@@ -137,8 +210,6 @@ function selectStudent(student) {
     selectedStudentId = student.id;
     document.getElementById('student-select-msg').style.display = 'none';
     document.getElementById('student-detail-view').style.display = 'block';
-    
-    // 表示モードリセット
     document.getElementById('student-info-display').style.display = 'block';
     document.getElementById('student-info-edit').style.display = 'none';
 
@@ -146,25 +217,27 @@ function selectStudent(student) {
     document.getElementById('detail-grade').textContent = student.grade;
     document.getElementById('detail-school').textContent = student.school;
     document.getElementById('detail-target-school').textContent = student.target_school || '-';
+    document.getElementById('detail-category').textContent = student.category || '-';
+    document.getElementById('detail-category-badge').textContent = student.category || '未設定';
     document.getElementById('detail-memo').textContent = student.memo;
     
-    let profileData = {};
-    try {
-        if (student.profile_data) {
-            profileData = JSON.parse(student.profile_data);
-        }
-    } catch (e) {
-        console.error('Profile parse error', e);
+    const hideBtn = document.getElementById('btn-toggle-hide');
+    if (student.is_hidden === 1) {
+        hideBtn.innerHTML = '<i class="bi bi-eye"></i> 表示に戻す';
+        hideBtn.classList.replace('btn-outline-secondary', 'btn-outline-success');
+    } else {
+        hideBtn.innerHTML = '<i class="bi bi-eye-slash"></i> 非表示';
+        hideBtn.classList.replace('btn-outline-success', 'btn-outline-secondary');
     }
+
+    let profileData = {};
+    try { if (student.profile_data) profileData = JSON.parse(student.profile_data); } catch (e) {}
 
     profileFieldIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.value = profileData[id] || (el.type === 'range' ? '3' : '');
-            if (el.type === 'range') {
-                const valSpan = document.getElementById(id.replace('prof-eval-', 'val-'));
-                if (valSpan) valSpan.innerText = el.value;
-            }
+            if (el.type === 'range') document.getElementById(id.replace('prof-eval-', 'val-')).innerText = el.value;
         }
     });
     
@@ -178,22 +251,74 @@ function selectStudent(student) {
             reportList.appendChild(div);
         });
     });
+
+    // ★生徒個別カレンダーのセットアップ
+    setupStudentCalendar(student.id);
+}
+
+// ★生徒個別カレンダー
+function setupStudentCalendar(studentId) {
+    const calendarEl = document.getElementById('student-calendar');
+    calendarEl.innerHTML = ''; // クリア
+
+    studentCalendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'ja',
+        height: 500, // 少し小さめに
+        headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+        events: `/api/students/${studentId}/events`,
+        dateClick: function(info) {
+            // 予定追加モーダルを開く
+            document.getElementById('event-start-date').value = info.dateStr;
+            document.getElementById('event-date-display').value = info.dateStr;
+            document.getElementById('event-title').value = '';
+            new bootstrap.Modal(document.getElementById('addEventModal')).show();
+        },
+        eventClick: function(info) {
+            if(confirm(`「${info.event.title}」を削除しますか？`)) {
+                fetch(`/api/events/${info.event.id}`, { method: 'DELETE' }).then(() => {
+                    info.event.remove();
+                    // 全体カレンダーも更新しておく
+                    if(calendar) calendar.refetchEvents();
+                });
+            }
+        }
+    });
+    // タブが既に表示されている場合は即描画
+    const tabPane = document.getElementById('tab-calendar');
+    if (tabPane.classList.contains('active')) {
+        setTimeout(() => studentCalendar.render(), 100);
+    }
+}
+
+// ★予定追加処理
+window.addStudentEvent = function() {
+    if(!selectedStudentId) return;
+    const title = document.getElementById('event-title').value;
+    const date = document.getElementById('event-start-date').value;
+    const color = document.getElementById('event-color').value;
+
+    if(!title) { alert('予定名を入力してください'); return; }
+
+    fetch(`/api/students/${selectedStudentId}/events`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: title, start: date, color: color })
+    }).then(res => res.json()).then(() => {
+        bootstrap.Modal.getInstance(document.getElementById('addEventModal')).hide();
+        studentCalendar.refetchEvents(); // カレンダー更新
+        if(calendar) calendar.refetchEvents(); // 全体カレンダーも更新
+    });
 }
 
 function saveProfileData() {
     if(!selectedStudentId) return;
     const data = {};
-    profileFieldIds.forEach(id => {
-        const el = document.getElementById(id);
-        if(el) data[id] = el.value;
-    });
-
+    profileFieldIds.forEach(id => { const el = document.getElementById(id); if(el) data[id] = el.value; });
     fetch(`/api/students/${selectedStudentId}/profile`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileData: data })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileData: data })
     }).then(() => {
-        alert('プロファイリング情報を保存しました');
+        alert('保存しました');
         const s = allStudents.find(st => st.id === selectedStudentId);
         if(s) s.profile_data = JSON.stringify(data);
     });
@@ -207,6 +332,7 @@ function toggleEditMode() {
         const currentGrade = document.getElementById('detail-grade').textContent;
         const editGradeSelect = document.getElementById('edit-grade');
         Array.from(editGradeSelect.options).forEach(opt => opt.selected = (opt.value === currentGrade));
+        document.getElementById('edit-category').value = document.getElementById('detail-category').textContent === '-' ? '' : document.getElementById('detail-category').textContent;
         document.getElementById('edit-school').value = document.getElementById('detail-school').textContent;
         const target = document.getElementById('detail-target-school').textContent;
         document.getElementById('edit-target-school').value = target === '-' ? '' : target;
@@ -221,111 +347,133 @@ function toggleEditMode() {
 
 function saveStudentInfo() {
     if (!selectedStudentId) return;
+    const currentStudent = allStudents.find(s => s.id === selectedStudentId);
     const body = {
         name: document.getElementById('edit-name').value,
         grade: document.getElementById('edit-grade').value,
         school: document.getElementById('edit-school').value,
         target_school: document.getElementById('edit-target-school').value,
-        memo: document.getElementById('edit-memo').value
+        category: document.getElementById('edit-category').value,
+        memo: document.getElementById('edit-memo').value,
+        is_hidden: currentStudent.is_hidden 
     };
     fetch(`/api/students/${selectedStudentId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
     }).then(res => res.json()).then(() => {
         alert('更新しました');
-        const updatedStudent = allStudents.find(s => s.id === selectedStudentId);
-        if(updatedStudent) Object.assign(updatedStudent, body);
-        selectStudent({...updatedStudent, ...body}); 
+        Object.assign(currentStudent, body);
+        selectStudent(currentStudent); 
         loadStudents(); 
     });
 }
 
-// --- レポート機能 ---
-
 function loadReportList() {
     const container = document.getElementById('report-grid-container');
     container.innerHTML = '';
-
     const newBtn = document.createElement('div');
     newBtn.className = 'report-card-item report-card-new';
     newBtn.innerHTML = '<i class="bi bi-plus-circle"></i><div>新規レポートを作成</div>';
-    newBtn.onclick = () => {
-        new bootstrap.Modal(document.getElementById('selectStudentModal')).show();
-    };
+    newBtn.onclick = () => { new bootstrap.Modal(document.getElementById('selectStudentModal')).show(); };
     container.appendChild(newBtn);
 
-    fetch('/api/reports')
-        .then(res => res.json())
-        .then(reports => {
-            reports.forEach(report => {
-                const card = document.createElement('div');
-                card.className = 'report-card-item';
-                const date = new Date(report.created_at).toLocaleDateString();
-                const preview = report.content.replace(/\n/g, ' ').substring(0, 60) + '...';
-                
-                card.innerHTML = `
-                    <div>
-                        <div class="report-card-date">${date}</div>
-                        <div class="report-card-name">${report.student_name || '不明な生徒'}</div>
-                    </div>
-                    <div class="report-card-preview text-muted mt-2">${preview}</div>
-                `;
-                card.onclick = () => openReportForm(report);
-                container.appendChild(card);
-            });
+    fetch('/api/reports').then(res => res.json()).then(reports => {
+        reports.forEach(report => {
+            const card = document.createElement('div');
+            card.className = 'report-card-item';
+            const date = new Date(report.created_at).toLocaleDateString();
+            const preview = report.content.replace(/\n/g, ' ').substring(0, 60) + '...';
+            const typeBadge = report.report_type === 'normal' ? '<span class="badge bg-info mb-1">ノーマル</span>' : '<span class="badge bg-secondary mb-1">拝島</span>';
+            card.innerHTML = `<div>${typeBadge}<div class="report-card-date">${date}</div><div class="report-card-name">${report.student_name || '不明な生徒'}</div></div><div class="report-card-preview text-muted mt-2">${preview}</div>`;
+            card.onclick = () => openReportForm(report);
+            container.appendChild(card);
         });
+    });
+}
+
+function deleteReport() {
+    const reportId = document.getElementById('report-id').value;
+    if (!reportId) return;
+    if (!confirm('本当にこのレポートを削除しますか？\nこの操作は取り消せません。')) return;
+
+    fetch(`/api/reports/${reportId}`, { method: 'DELETE' }).then(res => {
+        if (res.ok) {
+            alert('レポートを削除しました');
+            closeReportForm();
+            loadReportList();
+            if(calendar) calendar.refetchEvents();
+        } else {
+            alert('削除に失敗しました');
+        }
+    });
 }
 
 function startNewReport() {
     const studentId = document.getElementById('modal-student-select').value;
+    const typeNormal = document.getElementById('typeNormal').checked;
+    const reportType = typeNormal ? 'normal' : 'haijima';
+
     if (!studentId) return;
-    
     const student = allStudents.find(s => s.id == studentId);
     bootstrap.Modal.getInstance(document.getElementById('selectStudentModal')).hide();
-    
-    openReportForm(null, student); 
+    openReportForm(null, student, reportType); 
 }
 
-function openReportForm(report = null, student = null) {
+function openReportForm(report = null, student = null, newReportType = 'normal') {
     document.getElementById('report-list-view').style.display = 'none';
     document.getElementById('report-form-view').style.display = 'block';
     document.getElementById('output-container').innerHTML = '';
-
     const formTitle = document.getElementById('report-form-title');
     const saveBtn = document.getElementById('save-report-btn');
+    const deleteBtn = document.getElementById('delete-report-btn');
     const editBtn = document.getElementById('edit-mode-btn');
-
-    resetForm();
-
-    // 編集・表示制御関数
+    
     const setEditable = (editable) => {
         const inputs = document.querySelectorAll('#report-form-view input:not([readonly]), #report-form-view textarea, #report-form-view select, #add-plan-button, .btn-danger');
         inputs.forEach(el => el.disabled = !editable);
     };
 
+    const switchFormType = (type) => {
+        const fixedSection = document.getElementById('report-fixed-section');
+        const mainTitle = document.getElementById('report-main-title');
+        if (type === 'normal') {
+            fixedSection.style.display = 'none'; 
+            mainTitle.textContent = 'レポート内容';
+        } else {
+            fixedSection.style.display = 'block'; 
+            mainTitle.textContent = '2. 教科ごとの報告';
+        }
+    };
+
+    resetForm();
+
     if (report) {
         formTitle.textContent = 'レポート編集';
         document.getElementById('report-id').value = report.id;
         document.getElementById('report-student-display').value = report.student_name;
+        document.getElementById('report-student-id').value = report.student_id;
+        document.getElementById('report-type').value = report.report_type || 'haijima'; 
         document.getElementById('report-next-date').value = report.next_training_date || '';
         
-        // データを復元してフォームに入力
-        parseContentToForm(report.content);
+        switchFormType(report.report_type || 'haijima');
+        parseContentToForm(report.content, report.report_type || 'haijima');
         
-        // 常に編集可能な状態にする（保存ボタンも表示）
         setEditable(true);
         saveBtn.style.display = 'block';
-        editBtn.style.display = 'none'; // 編集ボタンは不要化
-
+        deleteBtn.style.display = 'inline-block'; 
+        editBtn.style.display = 'none';
     } else if (student) {
         formTitle.textContent = '新規レポート作成';
         document.getElementById('report-id').value = ''; 
         document.getElementById('report-student-id').value = student.id;
         document.getElementById('report-student-display').value = student.name;
+        document.getElementById('report-type').value = newReportType;
         
+        switchFormType(newReportType);
+        createPlanCard({ type: newReportType });
+
         setEditable(true);
         saveBtn.style.display = 'block';
+        deleteBtn.style.display = 'none'; 
         editBtn.style.display = 'none';
     }
 }
@@ -342,48 +490,68 @@ function setupReportForm() {
     const outputContainer = document.getElementById('output-container');
     const subjectOptions = ['数学', '英語', '国語', '理科', '社会', '物理', '化学', '生物', '地学', '世界史', '日本史', '地理', 'その他'];
 
-    window.createPlanCard = function(initialData = null) {
+    window.createPlanCard = function(initialData = {}) {
+        const currentType = initialData.type || document.getElementById('report-type').value || 'haijima';
         const cardDiv = document.createElement('div');
         cardDiv.className = 'card mb-3 bg-light plan-card';
         const cardBody = document.createElement('div');
         cardBody.className = 'card-body';
-        
         const headerRow = document.createElement('div');
         headerRow.className = 'd-flex justify-content-between mb-2';
-        const select = document.createElement('select');
-        select.className = 'form-select me-2 subject-select';
-        select.style.maxWidth = '150px';
-        subjectOptions.forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s;
-            opt.textContent = s;
-            select.appendChild(opt);
-        });
-        if(initialData) select.value = initialData.subject;
+        
+        let titleInput;
+        if (currentType === 'haijima') {
+            titleInput = document.createElement('select');
+            titleInput.className = 'form-select me-2 subject-select';
+            titleInput.style.maxWidth = '150px';
+            subjectOptions.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; titleInput.appendChild(opt); });
+            if(initialData.subject) titleInput.value = initialData.subject;
+        } else {
+            titleInput = document.createElement('input');
+            titleInput.type = 'text';
+            titleInput.className = 'form-control me-2 subject-select';
+            titleInput.placeholder = 'トピック名 (任意)';
+            titleInput.style.maxWidth = '200px';
+            if(initialData.subject) titleInput.value = initialData.subject;
+        }
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'btn btn-danger btn-sm';
         removeBtn.textContent = '×';
         removeBtn.onclick = () => planContainer.removeChild(cardDiv);
+        headerRow.appendChild(titleInput); headerRow.appendChild(removeBtn); cardBody.appendChild(headerRow);
 
-        headerRow.appendChild(select);
-        headerRow.appendChild(removeBtn);
-        cardBody.appendChild(headerRow);
+        let fields = [];
+        if (currentType === 'haijima') {
+            fields = [
+                { ph: '振り返り', cls: 'review-input' },
+                { ph: '理想・目標', cls: 'goal-input' },
+                { ph: '現状', cls: 'situation-input' },
+                { ph: '具体的な行動・勉強法', cls: 'solution-input' }
+            ];
+        } else {
+            fields = [
+                { ph: '現状', cls: 'n-current' },
+                { ph: '理想', cls: 'n-ideal' },
+                { ph: 'ギャップ（問題）', cls: 'n-gap' },
+                { ph: '原因', cls: 'n-cause' },
+                { ph: '課題', cls: 'n-issue' },
+                { ph: '行動（具体）', cls: 'n-action' },
+                { ph: '行動の条件（いつ・どこで・どれくらい）', cls: 'n-condition' },
+                { ph: '予測される障害', cls: 'n-obstacle' },
+                { ph: '障害の対処', cls: 'n-deal' },
+                { ph: '成果の指標（KPI）', cls: 'n-kpi' }
+            ];
+        }
 
-        const placeholders = ['振り返り', '理想・目標', '現状', '具体的な行動'];
-        const inputClasses = ['review-input', 'goal-input', 'situation-input', 'solution-input'];
-        const initialValues = initialData ? [initialData.review, initialData.goal, initialData.situation, initialData.solution] : ['','','',''];
-
-        placeholders.forEach((ph, idx) => {
+        fields.forEach((f) => {
             const ta = document.createElement('textarea');
-            ta.className = `form-control mb-2 plan-input ${inputClasses[idx]}`;
-            ta.rows = 2;
-            ta.placeholder = ph;
-            ta.value = initialValues[idx] || '';
+            ta.className = `form-control mb-2 plan-input ${f.cls}`;
+            ta.rows = 2; ta.placeholder = f.ph;
+            if (initialData.values && initialData.values[f.cls]) ta.value = initialData.values[f.cls];
             cardBody.appendChild(ta);
         });
-        cardDiv.appendChild(cardBody);
-        planContainer.appendChild(cardDiv);
+        cardDiv.appendChild(cardBody); planContainer.appendChild(cardDiv);
     };
 
     addPlanButton.addEventListener('click', () => createPlanCard());
@@ -391,54 +559,101 @@ function setupReportForm() {
     saveButton.addEventListener('click', () => {
         const reportId = document.getElementById('report-id').value;
         const studentId = document.getElementById('report-student-id').value;
+        const reportType = document.getElementById('report-type').value;
         const nextDate = document.getElementById('report-next-date').value;
+        const studentName = document.getElementById('report-student-display').value;
 
-        // テキスト生成
         let fullText = "";
+        outputContainer.innerHTML = ''; 
+
+        const pdfContainer = document.createElement('div');
+        pdfContainer.id = 'pdf-content';
+        pdfContainer.style.padding = '20px';
+        pdfContainer.style.fontFamily = 'sans-serif';
+        pdfContainer.innerHTML = `<h2 style="text-align:center; border-bottom:1px solid #ccc; padding-bottom:10px;">特訓レポート (${reportType === 'normal' ? 'ノーマル' : '拝島'})</h2>
+        <p><strong>生徒名:</strong> ${studentName}<br><strong>日時:</strong> ${new Date().toLocaleDateString()}</p><hr>`;
+
         const appendBox = (title, lines) => {
             if(lines.length===0) return;
             const boxDiv = document.createElement('div');
             boxDiv.className = 'output-box mb-3 p-3 bg-white border rounded';
-            boxDiv.innerHTML = `<h5 class="fs-6 fw-bold">${title}</h5><pre class="bg-light p-2 rounded">${lines.join('\n\n')}</pre>`;
+            const copyBtn = `<button class="btn btn-sm btn-outline-primary float-end" onclick="copyToClipboard(this)">コピー</button>`;
+            const textContent = lines.join('\n\n');
+            boxDiv.innerHTML = `<div><h5 class="fs-6 fw-bold d-inline-block">${title}</h5>${copyBtn}</div><pre class="bg-light p-2 rounded mt-2">${textContent}</pre>`;
             outputContainer.appendChild(boxDiv);
-            fullText += `${title}\n${lines.join('\n\n')}\n\n`;
+            fullText += `${title}\n${textContent}\n\n`;
+            pdfContainer.innerHTML += `<h4>${title}</h4><pre style="background:#f9f9f9; padding:10px; white-space:pre-wrap;">${textContent}</pre>`;
         };
-        
-        outputContainer.innerHTML = ''; 
 
-        // 固定項目収集
-        const hw = document.getElementById('homework-review').value.trim();
-        const test = document.getElementById('test-review').value.trim();
-        const ev = document.getElementById('events-notes').value.trim();
-        const other = document.getElementById('other-notes').value.trim();
-        
-        if(hw || test) appendBox('【宿題/確認テストの振り返り】', [hw && `⚪︎ 宿題\n${hw}`, test && `⚪︎ テスト\n${test}`].filter(Boolean));
-        if(ev || other) appendBox('【特記事項】', [ev && `⚪︎ 行事\n${ev}`, other && `⚪︎ その他\n${other}`].filter(Boolean));
+        const appendNormalPreview = (htmlContent) => {
+            outputContainer.innerHTML = `
+                <div class="alert alert-success">
+                    <h5>レポートを作成しました</h5>
+                    <p>以下のボタンからPDFをダウンロードできます。</p>
+                    <button class="btn btn-primary" onclick="downloadPDF()"><i class="bi bi-file-earmark-pdf"></i> PDFダウンロード</button>
+                </div>
+                <div class="border p-4 bg-white shadow-sm" id="normal-preview">${htmlContent}</div>
+            `;
+        };
 
-        // カード項目収集
-        const cards = document.querySelectorAll('.plan-card');
-        const subjects = {review:[], goal:[], sit:[], sol:[]};
-        cards.forEach(c => {
-            const sub = c.querySelector('.subject-select').value;
-            const rev = c.querySelector('.review-input').value.trim();
-            const goal = c.querySelector('.goal-input').value.trim();
-            const sit = c.querySelector('.situation-input').value.trim();
-            const sol = c.querySelector('.solution-input').value.trim();
-            if(rev) subjects.review.push(`⚪︎ ${sub}\n${rev}`);
-            if(goal) subjects.goal.push(`⚪︎ ${sub}\n${goal}`);
-            if(sit) subjects.sit.push(`⚪︎ ${sub}\n${sit}`);
-            if(sol) subjects.sol.push(`⚪︎ ${sub}\n${sol}`);
-        });
+        if (reportType === 'haijima') {
+            const hw = document.getElementById('homework-review').value.trim();
+            const test = document.getElementById('test-review').value.trim();
+            const ev = document.getElementById('events-notes').value.trim();
+            const other = document.getElementById('other-notes').value.trim();
+            if(hw || test) appendBox('【宿題/確認テストの振り返り】', [hw && `⚪︎ 宿題\n${hw}`, test && `⚪︎ テスト\n${test}`].filter(Boolean));
+            if(ev || other) appendBox('【特記事項】', [ev && `⚪︎ 行事\n${ev}`, other && `⚪︎ その他\n${other}`].filter(Boolean));
 
-        if(subjects.review.length) appendBox('【振り返り】', subjects.review);
-        if(subjects.goal.length) appendBox('【理想・目標】', subjects.goal);
-        if(subjects.sit.length) appendBox('【現状】', subjects.sit);
-        if(subjects.sol.length) appendBox('【具体的な行動・勉強法】', subjects.sol);
+            const cards = document.querySelectorAll('.plan-card');
+            cards.forEach(c => {
+                const sub = c.querySelector('.subject-select').value;
+                const rev = c.querySelector('.review-input').value.trim();
+                const goal = c.querySelector('.goal-input').value.trim();
+                const sit = c.querySelector('.situation-input').value.trim();
+                const sol = c.querySelector('.solution-input').value.trim();
+                const lines = [];
+                if(rev) lines.push(`[振り返り]\n${rev}`);
+                if(goal) lines.push(`[理想・目標]\n${goal}`);
+                if(sit) lines.push(`[現状]\n${sit}`);
+                if(sol) lines.push(`[行動・勉強法]\n${sol}`);
+                if(lines.length > 0) appendBox(`【${sub}】`, lines);
+            });
+
+        } else {
+            const cards = document.querySelectorAll('.plan-card');
+            let normalHtml = "";
+            let normalText = "";
+            cards.forEach(c => {
+                const topic = c.querySelector('.subject-select').value || 'トピック';
+                normalHtml += `<div style="margin-bottom:20px; border:1px solid #ddd; padding:15px; border-radius:5px;">
+                    <h3 style="background:#f0f8ff; padding:5px 10px; margin-top:0;">${topic}</h3>
+                    <table style="width:100%; border-collapse:collapse;">`;
+                
+                const addRow = (label, cls) => {
+                    const val = c.querySelector(`.${cls}`).value.trim();
+                    if(val) {
+                        normalHtml += `<tr><td style="font-weight:bold; width:30%; border-bottom:1px solid #eee; padding:5px;">${label}</td><td style="border-bottom:1px solid #eee; padding:5px;">${val.replace(/\n/g,'<br>')}</td></tr>`;
+                        normalText += `[${label}] ${val}\n`;
+                    }
+                };
+                
+                normalText += `■ ${topic}\n`;
+                addRow('現状', 'n-current'); addRow('理想', 'n-ideal'); addRow('ギャップ', 'n-gap');
+                addRow('原因', 'n-cause'); addRow('課題', 'n-issue'); addRow('行動', 'n-action');
+                addRow('条件', 'n-condition'); addRow('障害', 'n-obstacle'); addRow('対処', 'n-deal');
+                addRow('KPI', 'n-kpi');
+                
+                normalHtml += `</table></div>`;
+                normalText += `\n`;
+            });
+            fullText = normalText;
+            appendNormalPreview(normalHtml);
+            pdfContainer.innerHTML += normalHtml; 
+        }
 
         const url = reportId ? `/api/reports/${reportId}` : '/api/reports';
         const method = reportId ? 'PUT' : 'POST';
-        const body = { nextDate, content: fullText };
-        if(!reportId) body.studentId = studentId;
+        const body = { studentId, reportType, nextDate, content: fullText };
 
         fetch(url, {
             method: method,
@@ -448,72 +663,100 @@ function setupReportForm() {
         .then(res => res.json())
         .then(data => {
             alert('保存しました');
-            
-            // ★保存後も画面を維持し、新規ならIDをセットして編集モードに切り替え
             if (!reportId && data.id) {
                 document.getElementById('report-id').value = data.id;
                 document.getElementById('report-form-title').textContent = 'レポート編集';
+                document.getElementById('delete-report-btn').style.display = 'inline-block';
             }
-            
-            loadReportList(); // 裏側で一覧を更新しておく
+            loadReportList(); 
             if(calendar) calendar.refetchEvents();
+            
+            window.downloadPDF = function() {
+                const opt = {
+                    margin: 10,
+                    filename: `${studentName}_report.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: { scale: 2 },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                };
+                html2pdf().from(pdfContainer).set(opt).save();
+            };
         });
     });
 }
 
-// テキスト解析・フォーム復元関数
-function parseContentToForm(text) {
-    document.getElementById('plan-container').innerHTML = '';
+window.copyToClipboard = function(btn) {
+    const text = btn.parentElement.nextElementSibling.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const original = btn.textContent;
+        btn.textContent = '完了!';
+        setTimeout(() => btn.textContent = original, 2000);
+    });
+};
 
+function parseContentToForm(text, type) {
+    document.getElementById('plan-container').innerHTML = '';
     const extractSection = (header) => {
         const regex = new RegExp(`【${header}】\\n([\\s\\S]*?)(?=\\n\\n【|$)`);
         const match = text.match(regex);
         return match ? match[1].trim() : '';
     };
 
-    const hwTest = extractSection('宿題/確認テストの振り返り');
-    const notes = extractSection('特記事項');
+    if (type === 'haijima') {
+        const hwTest = extractSection('宿題/確認テストの振り返り');
+        const notes = extractSection('特記事項');
+        const hwMatch = hwTest.match(/⚪︎ 宿題\n([\s\S]*?)(?=\n⚪︎|$)/);
+        const testMatch = hwTest.match(/⚪︎ テスト\n([\s\S]*?)(?=\n⚪︎|$)/);
+        document.getElementById('homework-review').value = hwMatch ? hwMatch[1].trim() : '';
+        document.getElementById('test-review').value = testMatch ? testMatch[1].trim() : '';
+        const evMatch = notes.match(/⚪︎ 行事\n([\s\S]*?)(?=\n⚪︎|$)/);
+        const othMatch = notes.match(/⚪︎ その他\n([\s\S]*?)(?=\n⚪︎|$)/);
+        document.getElementById('events-notes').value = evMatch ? evMatch[1].trim() : '';
+        document.getElementById('other-notes').value = othMatch ? othMatch[1].trim() : '';
 
-    const hwMatch = hwTest.match(/⚪︎ 宿題\n([\s\S]*?)(?=\n⚪︎|$)/);
-    const testMatch = hwTest.match(/⚪︎ テスト\n([\s\S]*?)(?=\n⚪︎|$)/);
-    document.getElementById('homework-review').value = hwMatch ? hwMatch[1].trim() : '';
-    document.getElementById('test-review').value = testMatch ? testMatch[1].trim() : '';
-
-    const evMatch = notes.match(/⚪︎ 行事\n([\s\S]*?)(?=\n⚪︎|$)/);
-    const othMatch = notes.match(/⚪︎ その他\n([\s\S]*?)(?=\n⚪︎|$)/);
-    document.getElementById('events-notes').value = evMatch ? evMatch[1].trim() : '';
-    document.getElementById('other-notes').value = othMatch ? othMatch[1].trim() : '';
-
-    const subjectsData = {};
-    const parseSubjectSection = (header, key) => {
-        const content = extractSection(header);
-        const regex = /⚪︎ (.*?)\n([\s\S]*?)(?=\n⚪︎|$)/g;
+        const regex = /【(.*?)】\n([\s\S]*?)(?=\n\n【|$)/g;
         let match;
-        while ((match = regex.exec(content)) !== null) {
-            const subject = match[1].trim();
-            const value = match[2].trim();
-            if (!subjectsData[subject]) subjectsData[subject] = {};
-            subjectsData[subject][key] = value;
+        const subjectData = {};
+        while ((match = regex.exec(text)) !== null) {
+            const title = match[1];
+            if (title.includes('振り返り') || title.includes('特記事項')) continue;
+            const content = match[2];
+            const extractVal = (key) => {
+                const m = content.match(new RegExp(`\\[${key}\\]\\n([\\s\\S]*?)(?=\\n\\[|$)`));
+                return m ? m[1].trim() : '';
+            };
+            createPlanCard({
+                type: 'haijima',
+                subject: title,
+                values: {
+                    'review-input': extractVal('振り返り'),
+                    'goal-input': extractVal('理想・目標'),
+                    'situation-input': extractVal('現状'),
+                    'solution-input': extractVal('行動・勉強法')
+                }
+            });
         }
-    };
-
-    parseSubjectSection('振り返り', 'review');
-    parseSubjectSection('理想・目標', 'goal');
-    parseSubjectSection('現状', 'situation');
-    parseSubjectSection('具体的な行動・勉強法', 'solution');
-
-    Object.keys(subjectsData).forEach(subject => {
-        createPlanCard({
-            subject: subject,
-            review: subjectsData[subject].review || '',
-            goal: subjectsData[subject].goal || '',
-            situation: subjectsData[subject].situation || '',
-            solution: subjectsData[subject].solution || ''
-        });
-    });
-
-    if (Object.keys(subjectsData).length === 0) {
-        createPlanCard();
+    } else {
+        const regex = /■ (.*?)\n([\s\S]*?)(?=\n■|$)/g;
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            const topic = match[1];
+            const content = match[2];
+            const extractVal = (label) => {
+                const m = content.match(new RegExp(`\\[${label}\\] ([^\\n]*)`));
+                return m ? m[1].trim() : '';
+            };
+            createPlanCard({
+                type: 'normal',
+                subject: topic,
+                values: {
+                    'n-current': extractVal('現状'), 'n-ideal': extractVal('理想'), 'n-gap': extractVal('ギャップ'),
+                    'n-cause': extractVal('原因'), 'n-issue': extractVal('課題'), 'n-action': extractVal('行動'),
+                    'n-condition': extractVal('条件'), 'n-obstacle': extractVal('障害'), 'n-deal': extractVal('対処'),
+                    'n-kpi': extractVal('KPI')
+                }
+            });
+        }
     }
 }
 
@@ -521,17 +764,14 @@ function resetForm() {
     document.getElementById('plan-container').innerHTML = '';
     document.querySelectorAll('#report-form-view textarea').forEach(t => t.value = '');
     document.getElementById('report-next-date').value = '';
-    createPlanCard(); 
 }
 
 function setupCalendar() {
     const calendarEl = document.getElementById('calendar');
     calendar = new FullCalendar.Calendar(calendarEl, {
-        initialView: 'dayGridMonth',
-        locale: 'ja',
+        initialView: 'dayGridMonth', locale: 'ja',
         headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,listWeek' },
-        events: '/api/calendar-events',
-        height: 'auto',
+        events: '/api/calendar-events', height: 'auto',
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', meridiem: false }
     });
     calendar.render();

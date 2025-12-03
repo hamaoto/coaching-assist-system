@@ -99,6 +99,22 @@ app.put('/api/students/:id', (req, res) => {
     });
 });
 
+// ... (前略)
+
+// ★追加: 生徒の削除
+app.delete('/api/students/:id', (req, res) => {
+    if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });
+    
+    // 生徒を削除 (関連するレポートも消すのが理想ですが、今回は生徒のみ削除します)
+    const stmt = db.prepare('DELETE FROM students WHERE id = ?');
+    stmt.run(req.params.id, function(err) {
+        if (err) return res.status(500).json({ error: '削除失敗' });
+        res.json({ message: '削除成功' });
+    });
+});
+
+// ... (後略)
+
 // ★変更: プロファイリングデータ(JSON)を保存
 app.post('/api/students/:id/profile', (req, res) => {
     if (!req.session.userId) return res.status(403).json({ error: '要ログイン' });

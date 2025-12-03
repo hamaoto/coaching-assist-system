@@ -87,9 +87,9 @@
                     </div>
                 </div>
 
-                <div class="d-flex gap-3 mb-4">
-                    <button id="edit-mode-btn" class="btn btn-warning flex-fill btn-lg" style="display:none;">編集する</button>
-                    <button id="save-report-btn" class="btn btn-success flex-fill btn-lg">保存する</button>
+                <div class="d-grid gap-2 mb-4">
+                    <button id="save-report-btn" class="btn btn-success btn-lg">保存する</button>
+                    <button id="edit-mode-btn" class="btn btn-warning btn-lg" style="display:none;">編集する</button>
                 </div>
                 
                 <div id="output-container"></div>
@@ -124,7 +124,14 @@
                                 <div id="student-info-display">
                                     <div class="d-flex justify-content-between align-items-center mb-3">
                                         <h3 id="detail-name" class="fw-bold m-0"></h3>
-                                        <button class="btn btn-outline-secondary btn-sm" onclick="toggleEditMode()"><i class="bi bi-pencil"></i> 編集</button>
+                                        <div>
+                                            <button class="btn btn-outline-danger btn-sm me-2" onclick="deleteStudent()">
+                                                <i class="bi bi-trash"></i> 削除
+                                            </button>
+                                            <button class="btn btn-outline-secondary btn-sm" onclick="toggleEditMode()">
+                                                <i class="bi bi-pencil"></i> 編集
+                                            </button>
+                                        </div>
                                     </div>
                                     <table class="table table-bordered">
                                         <tr><th style="width: 30%;" class="bg-light">学年</th><td id="detail-grade"></td></tr>

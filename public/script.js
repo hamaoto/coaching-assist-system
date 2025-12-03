@@ -1,8 +1,6 @@
-
 let calendar; 
 let selectedStudentId = null;
 const gradeOptions = ['小1','小2','小3','小4','小5','小6','中1','中2','中3','高1','高2','高3','既卒','社会人','その他'];
-// 生徒リストをキャッシュしておく変数
 let allStudents = [];
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -19,7 +17,6 @@ document.addEventListener('DOMContentLoaded', function() {
         fetch('/api/logout', { method: 'POST' }).then(() => location.href = '/');
     });
 
-    // 学年プルダウン初期化
     [document.getElementById('new-grade'), document.getElementById('edit-grade')].forEach(sel => {
         if(sel) {
             gradeOptions.forEach(g => {
@@ -31,24 +28,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // 初期表示
     showSection('report');
 });
 
-// --- 画面切り替え ---
 function showSection(sectionId) {
     document.querySelectorAll('.content-section').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.list-group-item').forEach(el => el.classList.remove('active'));
     document.getElementById(`section-${sectionId}`).style.display = 'block';
     
-    // メニューのアクティブ化
     const menuIndex = {'report':0, 'students':1, 'calendar':2}[sectionId];
     document.querySelectorAll('.list-group-item')[menuIndex].classList.add('active');
 
-    // セクションごとの初期処理
     if (sectionId === 'report') {
-        loadReportList(); // レポート一覧を読み込む
-        closeReportForm(); // 一覧画面を表示
+        loadReportList(); 
+        closeReportForm();
     } else if (sectionId === 'calendar' && calendar) {
         setTimeout(() => calendar.render(), 100);
     }
@@ -59,7 +52,7 @@ function loadStudents() {
     fetch('/api/students')
         .then(res => res.json())
         .then(data => {
-            allStudents = data; // キャッシュ
+            allStudents = data;
             const list = document.getElementById('student-list-group');
             const modalSelect = document.getElementById('modal-student-select');
             
@@ -67,7 +60,6 @@ function loadStudents() {
             modalSelect.innerHTML = '<option value="">選択してください...</option>';
             
             data.forEach(student => {
-                // 生徒リスト
                 const item = document.createElement('a');
                 item.href = '#';
                 item.className = 'list-group-item list-group-item-action';
@@ -75,7 +67,6 @@ function loadStudents() {
                 item.onclick = (e) => { e.preventDefault(); selectStudent(student); };
                 list.appendChild(item);
                 
-                // モーダルの選択肢
                 const opt = document.createElement('option');
                 opt.value = student.id;
                 opt.textContent = student.name;
@@ -85,7 +76,6 @@ function loadStudents() {
 }
 
 function openAddStudentModal() {
-    // フォームクリア
     document.getElementById('new-name').value = '';
     document.getElementById('new-school').value = '';
     document.getElementById('new-target-school').value = '';
@@ -114,7 +104,24 @@ function addStudent() {
     });
 }
 
-// プロファイリングシートの全フィールドIDリスト
+// 生徒削除機能
+function deleteStudent() {
+    if (!selectedStudentId) return;
+    if (!confirm('本当にこの生徒を削除しますか？\nこの操作は取り消せません。')) return;
+
+    fetch(`/api/students/${selectedStudentId}`, {
+        method: 'DELETE'
+    }).then(res => {
+        if (res.ok) {
+            alert('削除しました');
+            location.reload(); 
+        } else {
+            alert('削除に失敗しました');
+        }
+    });
+}
+
+// プロファイリングシートの項目ID定義
 const profileFieldIds = [
     'prof-strength', 'prof-weakness', 'prof-status-summary', 'prof-action-amount', 'prof-current-problem', 'prof-habit-pattern',
     'prof-ideal-state', 'prof-specific-goal', 'prof-reason', 'prof-numeric-goal',
@@ -141,21 +148,19 @@ function selectStudent(student) {
     document.getElementById('detail-target-school').textContent = student.target_school || '-';
     document.getElementById('detail-memo').textContent = student.memo;
     
-    // プロファイリングデータの読み込み
     let profileData = {};
     try {
         if (student.profile_data) {
             profileData = JSON.parse(student.profile_data);
         }
     } catch (e) {
-        console.error('Profile data parse error', e);
+        console.error('Profile parse error', e);
     }
 
-    // 各フィールドに値をセット
     profileFieldIds.forEach(id => {
         const el = document.getElementById(id);
         if (el) {
-            el.value = profileData[id] || (el.type === 'range' ? '3' : ''); // rangeはデフォルト3
+            el.value = profileData[id] || (el.type === 'range' ? '3' : '');
             if (el.type === 'range') {
                 const valSpan = document.getElementById(id.replace('prof-eval-', 'val-'));
                 if (valSpan) valSpan.innerText = el.value;
@@ -163,7 +168,6 @@ function selectStudent(student) {
         }
     });
     
-    // 過去レポート取得
     fetch(`/api/students/${student.id}/reports`).then(res => res.json()).then(reports => {
         const reportList = document.getElementById('student-reports-list');
         reportList.innerHTML = '';
@@ -178,7 +182,6 @@ function selectStudent(student) {
 
 function saveProfileData() {
     if(!selectedStudentId) return;
-    
     const data = {};
     profileFieldIds.forEach(id => {
         const el = document.getElementById(id);
@@ -238,26 +241,12 @@ function saveStudentInfo() {
     });
 }
 
-function saveStudentSheet() {
-    if(!selectedStudentId) return;
-    fetch(`/api/students/${selectedStudentId}/sheet`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            sheet_current: document.getElementById('sheet-current').value,
-            sheet_ideal: document.getElementById('sheet-ideal').value
-        })
-    }).then(() => alert('シートを保存しました'));
-}
-
 // --- レポート機能 ---
 
-// 1. レポート一覧表示
 function loadReportList() {
     const container = document.getElementById('report-grid-container');
     container.innerHTML = '';
 
-    // A. 新規作成ボタン
     const newBtn = document.createElement('div');
     newBtn.className = 'report-card-item report-card-new';
     newBtn.innerHTML = '<i class="bi bi-plus-circle"></i><div>新規レポートを作成</div>';
@@ -266,7 +255,6 @@ function loadReportList() {
     };
     container.appendChild(newBtn);
 
-    // B. 過去のレポート一覧
     fetch('/api/reports')
         .then(res => res.json())
         .then(reports => {
@@ -289,7 +277,6 @@ function loadReportList() {
         });
 }
 
-// 2. 新規作成フロー
 function startNewReport() {
     const studentId = document.getElementById('modal-student-select').value;
     if (!studentId) return;
@@ -297,10 +284,9 @@ function startNewReport() {
     const student = allStudents.find(s => s.id == studentId);
     bootstrap.Modal.getInstance(document.getElementById('selectStudentModal')).hide();
     
-    openReportForm(null, student); // null = 新規
+    openReportForm(null, student); 
 }
 
-// 3. フォームの表示 (新規 or 編集)
 function openReportForm(report = null, student = null) {
     document.getElementById('report-list-view').style.display = 'none';
     document.getElementById('report-form-view').style.display = 'block';
@@ -312,32 +298,33 @@ function openReportForm(report = null, student = null) {
 
     resetForm();
 
+    // 編集・表示制御関数
+    const setEditable = (editable) => {
+        const inputs = document.querySelectorAll('#report-form-view input:not([readonly]), #report-form-view textarea, #report-form-view select, #add-plan-button, .btn-danger');
+        inputs.forEach(el => el.disabled = !editable);
+    };
+
     if (report) {
-        // --- 編集/閲覧モード ---
         formTitle.textContent = 'レポート編集';
         document.getElementById('report-id').value = report.id;
         document.getElementById('report-student-display').value = report.student_name;
         document.getElementById('report-next-date').value = report.next_training_date || '';
         
+        // データを復元してフォームに入力
         parseContentToForm(report.content);
         
-        disableForm(true);
-        saveBtn.style.display = 'none';
-        editBtn.style.display = 'block';
-        editBtn.onclick = () => {
-            disableForm(false);
-            saveBtn.style.display = 'block';
-            editBtn.style.display = 'none';
-        };
+        // 常に編集可能な状態にする（保存ボタンも表示）
+        setEditable(true);
+        saveBtn.style.display = 'block';
+        editBtn.style.display = 'none'; // 編集ボタンは不要化
 
     } else if (student) {
-        // --- 新規作成モード ---
         formTitle.textContent = '新規レポート作成';
-        document.getElementById('report-id').value = ''; // 空なら新規
+        document.getElementById('report-id').value = ''; 
         document.getElementById('report-student-id').value = student.id;
         document.getElementById('report-student-display').value = student.name;
         
-        disableForm(false);
+        setEditable(true);
         saveBtn.style.display = 'block';
         editBtn.style.display = 'none';
     }
@@ -348,13 +335,6 @@ function closeReportForm() {
     document.getElementById('report-list-view').style.display = 'block';
 }
 
-function disableForm(disabled) {
-    const inputs = document.querySelectorAll('#report-form-view input:not([readonly]), #report-form-view textarea, #report-form-view select, #add-plan-button, .btn-danger');
-    inputs.forEach(el => el.disabled = disabled);
-}
-
-// --- フォーム処理詳細 ---
-
 function setupReportForm() {
     const planContainer = document.getElementById('plan-container');
     const addPlanButton = document.getElementById('add-plan-button');
@@ -362,7 +342,6 @@ function setupReportForm() {
     const outputContainer = document.getElementById('output-container');
     const subjectOptions = ['数学', '英語', '国語', '理科', '社会', '物理', '化学', '生物', '地学', '世界史', '日本史', '地理', 'その他'];
 
-    // カード作成関数
     window.createPlanCard = function(initialData = null) {
         const cardDiv = document.createElement('div');
         cardDiv.className = 'card mb-3 bg-light plan-card';
@@ -409,7 +388,6 @@ function setupReportForm() {
 
     addPlanButton.addEventListener('click', () => createPlanCard());
 
-    // 保存処理
     saveButton.addEventListener('click', () => {
         const reportId = document.getElementById('report-id').value;
         const studentId = document.getElementById('report-student-id').value;
@@ -457,7 +435,6 @@ function setupReportForm() {
         if(subjects.sit.length) appendBox('【現状】', subjects.sit);
         if(subjects.sol.length) appendBox('【具体的な行動・勉強法】', subjects.sol);
 
-        // API送信
         const url = reportId ? `/api/reports/${reportId}` : '/api/reports';
         const method = reportId ? 'PUT' : 'POST';
         const body = { nextDate, content: fullText };
@@ -472,22 +449,72 @@ function setupReportForm() {
         .then(data => {
             alert('保存しました');
             
-            // ★ポイント: 画面を閉じず、新規の場合はIDをセットして編集モードに移行
+            // ★保存後も画面を維持し、新規ならIDをセットして編集モードに切り替え
             if (!reportId && data.id) {
                 document.getElementById('report-id').value = data.id;
                 document.getElementById('report-form-title').textContent = 'レポート編集';
             }
             
-            loadReportList(); 
+            loadReportList(); // 裏側で一覧を更新しておく
             if(calendar) calendar.refetchEvents();
         });
     });
 }
 
+// テキスト解析・フォーム復元関数
 function parseContentToForm(text) {
-    createPlanCard(); 
-    const outputContainer = document.getElementById('output-container');
-    outputContainer.innerHTML = `<div class="alert alert-info">過去のデータ:<br><pre>${text}</pre></div>`;
+    document.getElementById('plan-container').innerHTML = '';
+
+    const extractSection = (header) => {
+        const regex = new RegExp(`【${header}】\\n([\\s\\S]*?)(?=\\n\\n【|$)`);
+        const match = text.match(regex);
+        return match ? match[1].trim() : '';
+    };
+
+    const hwTest = extractSection('宿題/確認テストの振り返り');
+    const notes = extractSection('特記事項');
+
+    const hwMatch = hwTest.match(/⚪︎ 宿題\n([\s\S]*?)(?=\n⚪︎|$)/);
+    const testMatch = hwTest.match(/⚪︎ テスト\n([\s\S]*?)(?=\n⚪︎|$)/);
+    document.getElementById('homework-review').value = hwMatch ? hwMatch[1].trim() : '';
+    document.getElementById('test-review').value = testMatch ? testMatch[1].trim() : '';
+
+    const evMatch = notes.match(/⚪︎ 行事\n([\s\S]*?)(?=\n⚪︎|$)/);
+    const othMatch = notes.match(/⚪︎ その他\n([\s\S]*?)(?=\n⚪︎|$)/);
+    document.getElementById('events-notes').value = evMatch ? evMatch[1].trim() : '';
+    document.getElementById('other-notes').value = othMatch ? othMatch[1].trim() : '';
+
+    const subjectsData = {};
+    const parseSubjectSection = (header, key) => {
+        const content = extractSection(header);
+        const regex = /⚪︎ (.*?)\n([\s\S]*?)(?=\n⚪︎|$)/g;
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            const subject = match[1].trim();
+            const value = match[2].trim();
+            if (!subjectsData[subject]) subjectsData[subject] = {};
+            subjectsData[subject][key] = value;
+        }
+    };
+
+    parseSubjectSection('振り返り', 'review');
+    parseSubjectSection('理想・目標', 'goal');
+    parseSubjectSection('現状', 'situation');
+    parseSubjectSection('具体的な行動・勉強法', 'solution');
+
+    Object.keys(subjectsData).forEach(subject => {
+        createPlanCard({
+            subject: subject,
+            review: subjectsData[subject].review || '',
+            goal: subjectsData[subject].goal || '',
+            situation: subjectsData[subject].situation || '',
+            solution: subjectsData[subject].solution || ''
+        });
+    });
+
+    if (Object.keys(subjectsData).length === 0) {
+        createPlanCard();
+    }
 }
 
 function resetForm() {

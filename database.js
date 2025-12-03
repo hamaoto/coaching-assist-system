@@ -11,10 +11,11 @@ db.serialize(() => {
         )
     `);
 
-    // 2. 生徒情報
+    // 2. 生徒情報 (★ user_id を追加して、担当者を区別)
     db.run(`
         CREATE TABLE IF NOT EXISTS students (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER, -- ★担当の先生ID
             name TEXT,
             grade TEXT,
             school TEXT,
@@ -23,7 +24,8 @@ db.serialize(() => {
             is_hidden INTEGER DEFAULT 0,
             memo TEXT,
             profile_data TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     `);
 
@@ -42,13 +44,13 @@ db.serialize(() => {
         )
     `);
 
-    // 4. 生徒の予定 (★新規追加)
+    // 4. 生徒の予定
     db.run(`
         CREATE TABLE IF NOT EXISTS student_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             student_id INTEGER,
             title TEXT,
-            start_date TEXT, -- YYYY-MM-DD 形式
+            start_date TEXT,
             color TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(student_id) REFERENCES students(id)

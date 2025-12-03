@@ -7,7 +7,11 @@ const db = require('./database');
 const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = 3001;
+
+// サーバーがどこで動いているか確認するログ
+console.log('現在の実行フォルダ:', process.cwd());
+console.log('データベースファイルの場所:', path.resolve('./reports.db'));
 
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));

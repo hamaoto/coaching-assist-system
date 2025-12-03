@@ -1,5 +1,5 @@
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./reports.db');
+const db = new sqlite3.Database('./reports_final.db');
 
 db.serialize(() => {
     // 1. ユーザー
@@ -20,7 +20,7 @@ db.serialize(() => {
             school TEXT,
             target_school TEXT,
             memo TEXT,
-            profile_data TEXT, -- ★ここに全てのプロファイリング情報をJSONで保存
+            profile_data TEXT, -- ★ここに全てのプロ/ファイリング情報をJSONで保存
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);

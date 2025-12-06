@@ -8,6 +8,14 @@ const path = require('path');
 const app = express();
 const PORT = 3001;
 
+const requireLogin = (req, res) => {
+    if (!req.session.userId) {
+        res.status(403).json({ error: '要ログイン' });
+        return false;
+    }
+    return true;
+};
+
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
@@ -276,6 +284,141 @@ app.get('/api/calendar-events', async (req, res) => {
     });
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}`);
+// --- 目標管理 API ---
+const mapGoalRow = (row) => ({
+    ...row,
+    progress: row.progress || 0,
+    importance: row.importance || 1,
 });
+
+const calculateRiskFlags = (goal, staleDays = 7) => {
+    const now = new Date();
+    const dueDate = goal.due_date ? new Date(goal.due_date) : null;
+    const progressDate = goal.progress_updated_at ? new Date(goal.progress_updated_at) : new Date(goal.created_at);
+    const staleBorder = new Date();
+    staleBorder.setDate(now.getDate() - staleDays);
+
+    const reasons = [];
+    if (dueDate && dueDate < now && goal.progress < 100) reasons.push('overdue');
+    if (progressDate < staleBorder && goal.progress < 100) reasons.push('stagnation');
+    return reasons;
+};
+
+app.get('/api/goals', (req, res) => {
+    if (!requireLogin(req, res)) return;
+    const sql = 'SELECT * FROM goals WHERE user_id = ? AND is_archived = 0 ORDER BY due_date IS NULL, due_date ASC, created_at DESC';
+    db.all(sql, [req.session.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: '取得失敗' });
+        res.json(rows.map(mapGoalRow));
+    });
+});
+
+app.post('/api/goals', (req, res) => {
+    if (!requireLogin(req, res)) return;
+    const { title, specific, measurable, achievable, relevant, time_bound, due_date, importance } = req.body;
+    if (!title) return res.status(400).json({ error: 'タイトルは必須です' });
+
+    const imp = Number(importance) || 1;
+    const stmt = db.prepare(`
+        INSERT INTO goals (user_id, title, specific, measurable, achievable, relevant, time_bound, due_date, importance)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+        req.session.userId,
+        title,
+        specific,
+        measurable,
+        achievable,
+        relevant,
+        time_bound,
+        due_date,
+        imp,
+        function(err) {
+            if (err) return res.status(500).json({ error: '保存失敗' });
+            res.json({ id: this.lastID, message: '保存成功' });
+        }
+    );
+});
+
+app.put('/api/goals/:id', (req, res) => {
+    if (!requireLogin(req, res)) return;
+    const { title, specific, measurable, achievable, relevant, time_bound, due_date, importance } = req.body;
+    if (!title) return res.status(400).json({ error: 'タイトルは必須です' });
+    const imp = Number(importance) || 1;
+    const stmt = db.prepare(`
+        UPDATE goals
+        SET title = ?, specific = ?, measurable = ?, achievable = ?, relevant = ?, time_bound = ?, due_date = ?, importance = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?
+    `);
+    stmt.run(title, specific, measurable, achievable, relevant, time_bound, due_date, imp, req.params.id, req.session.userId, function(err) {
+        if (err) return res.status(500).json({ error: '更新失敗' });
+        if (this.changes === 0) return res.status(404).json({ error: 'データが見つかりません' });
+        res.json({ message: '更新成功' });
+    });
+});
+
+app.delete('/api/goals/:id', (req, res) => {
+    if (!requireLogin(req, res)) return;
+    const stmt = db.prepare('DELETE FROM goals WHERE id = ? AND user_id = ?');
+    stmt.run(req.params.id, req.session.userId, function(err) {
+        if (err) return res.status(500).json({ error: '削除失敗' });
+        if (this.changes === 0) return res.status(404).json({ error: 'データが見つかりません' });
+        res.json({ message: '削除成功' });
+    });
+});
+
+app.post('/api/goals/:id/progress', (req, res) => {
+    if (!requireLogin(req, res)) return;
+    const progressValue = Math.min(Math.max(Number(req.body.progress ?? 0), 0), 100);
+    const goalSql = 'SELECT * FROM goals WHERE id = ? AND user_id = ?';
+    db.get(goalSql, [req.params.id, req.session.userId], (err, goal) => {
+        if (err) return res.status(500).json({ error: '取得失敗' });
+        if (!goal) return res.status(404).json({ error: 'データが見つかりません' });
+
+        const updateSql = `
+            UPDATE goals
+            SET progress = ?, progress_updated_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND user_id = ?
+        `;
+
+        db.run(updateSql, [progressValue, req.params.id, req.session.userId], function(updateErr) {
+            if (updateErr) return res.status(500).json({ error: '更新失敗' });
+            const updatedGoal = { ...goal, progress: progressValue };
+            const overdue = updatedGoal.due_date ? new Date(updatedGoal.due_date) < new Date() && progressValue < 100 : false;
+            const warning = overdue ? '期日を過ぎています。優先的に対応してください。' : null;
+            res.json({ message: '進捗を更新しました', progress: progressValue, overdue, warning });
+        });
+    });
+});
+
+const buildSummary = (goals, staleDays) => {
+    const total = goals.length;
+    const sum = goals.reduce((acc, g) => acc + (g.progress || 0), 0);
+    const achievementRate = total ? Math.round((sum / total) * 10) / 10 : 0;
+    const incompleteCount = goals.filter(g => (g.progress || 0) < 100).length;
+    const riskGoals = goals
+        .map(g => ({ id: g.id, title: g.title, reasons: calculateRiskFlags(g, staleDays) }))
+        .filter(g => g.reasons.length > 0);
+
+    return { achievementRate, incompleteCount, riskGoals };
+};
+
+app.get('/api/goals/summary', (req, res) => {
+    if (!requireLogin(req, res)) return;
+    const sql = 'SELECT * FROM goals WHERE user_id = ? AND is_archived = 0';
+    db.all(sql, [req.session.userId], (err, rows) => {
+        if (err) return res.status(500).json({ error: '取得失敗' });
+        const goals = rows.map(mapGoalRow);
+        const weekly = buildSummary(goals, 7);
+        const daily = buildSummary(goals, 2);
+        res.json({ weekly, daily });
+    });
+});
+
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, () => {
+        console.log(`Server running at http://localhost:${PORT}`);
+    });
+}
+
+module.exports = app;

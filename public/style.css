@@ -274,3 +274,53 @@ a { text-decoration: none; }
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
 }
+
+.goal-card {
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 16px;
+    background: #fff;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.04);
+}
+
+.goal-risk-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+}
+
+.goal-meta {
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+
+.risk-badge {
+    border: 1px solid #f5c2c7;
+    background: #fff5f5;
+    color: #b02a37;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+}
+
+.goal-progress-input {
+    min-width: 160px;
+}
+
+.goal-chip {
+    background: #f1f3f5;
+    border-radius: 8px;
+    padding: 4px 8px;
+    display: inline-block;
+    font-size: 0.85rem;
+}
+
+.goal-smart-text {
+    background: #f8f9fa;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+}

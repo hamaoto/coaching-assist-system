@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./reports_final.db');
+const dbPath = process.env.DB_PATH || './reports_final.db';
+const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
     // 1. ユーザー
@@ -54,6 +55,28 @@ db.serialize(() => {
             color TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(student_id) REFERENCES students(id)
+        )
+    `);
+
+    // 5. 目標管理
+    db.run(`
+        CREATE TABLE IF NOT EXISTS goals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            title TEXT NOT NULL,
+            specific TEXT,
+            measurable TEXT,
+            achievable TEXT,
+            relevant TEXT,
+            time_bound TEXT,
+            due_date TEXT,
+            importance INTEGER DEFAULT 1,
+            progress REAL DEFAULT 0,
+            is_archived INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            progress_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         )
     `);
 });

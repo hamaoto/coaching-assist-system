@@ -7,9 +7,12 @@ let allStudents = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     setupOptions();
-    loadStudents(); 
-    setupReportForm(); 
+    loadStudents();
+    setupReportForm();
     setupCalendar();
+    setupGoalForm();
+    loadGoals();
+    loadGoalSummary();
     
     fetch('/api/user/me').then(res => res.json()).then(data => {
         const userDisplay = document.getElementById('current-user-display');
@@ -859,4 +862,226 @@ function setupCalendar() {
         eventTimeFormat: { hour: '2-digit', minute: '2-digit', meridiem: false }
     });
     calendar.render();
+}
+
+// --- 目標管理 UI ---
+function setupGoalForm() {
+    const form = document.getElementById('goal-form');
+    if (!form) return;
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const payload = collectGoalPayload();
+        if (!payload.title) { alert('タイトルは必須です'); return; }
+        const goalId = document.getElementById('goal-id').value;
+        const method = goalId ? 'PUT' : 'POST';
+        const url = goalId ? `/api/goals/${goalId}` : '/api/goals';
+
+        fetch(url, {
+            method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).then(res => res.json()).then(() => {
+            resetGoalForm();
+            loadGoals();
+            loadGoalSummary();
+        }).catch(() => alert('保存に失敗しました'));
+    });
+
+    document.getElementById('goal-cancel').addEventListener('click', resetGoalForm);
+}
+
+function collectGoalPayload() {
+    return {
+        title: document.getElementById('goal-title').value,
+        specific: document.getElementById('goal-specific').value,
+        measurable: document.getElementById('goal-measurable').value,
+        achievable: document.getElementById('goal-achievable').value,
+        relevant: document.getElementById('goal-relevant').value,
+        time_bound: document.getElementById('goal-timebound').value,
+        due_date: document.getElementById('goal-due').value,
+        importance: document.getElementById('goal-importance').value
+    };
+}
+
+function resetGoalForm() {
+    document.getElementById('goal-id').value = '';
+    document.getElementById('goal-form').reset();
+    document.getElementById('goal-importance').value = '3';
+}
+
+function loadGoals() {
+    fetch('/api/goals')
+        .then(res => res.json())
+        .then(renderGoalList)
+        .catch(() => {
+            const container = document.getElementById('goal-list');
+            if (container) container.innerHTML = '<div class="text-muted">目標を読み込めませんでした</div>';
+        });
+}
+
+function renderGoalList(goals) {
+    const container = document.getElementById('goal-list');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!goals || goals.length === 0) {
+        container.innerHTML = '<div class="text-muted">まだ目標が登録されていません</div>';
+        return;
+    }
+
+    goals.forEach(goal => {
+        const card = document.createElement('div');
+        card.className = 'goal-card';
+        const risks = getGoalRisk(goal);
+
+        card.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start mb-2">
+                <div>
+                    <h5 class="mb-1">${goal.title}</h5>
+                    <div class="goal-meta">期日: ${goal.due_date || '未設定'} ／ 重要度: ${'★'.repeat(goal.importance)}</div>
+                    ${risks.length ? `<div class="mt-1">${risks.join('')}</div>` : ''}
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm goal-edit-btn">編集</button>
+                    <button class="btn btn-outline-danger btn-sm goal-delete-btn">削除</button>
+                </div>
+            </div>
+            <div class="progress mb-2" style="height: 12px;">
+                <div class="progress-bar ${risks.length ? 'bg-danger' : 'bg-success'}" role="progressbar" style="width: ${goal.progress}%"></div>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                <input type="range" min="0" max="100" value="${goal.progress}" class="form-range goal-progress-input">
+                <span class="badge bg-light text-dark">${goal.progress}%</span>
+                <button class="btn btn-sm btn-primary goal-progress-save">進捗更新</button>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mb-2">
+                ${renderSmartChip('Specific', goal.specific)}
+                ${renderSmartChip('Measurable', goal.measurable)}
+                ${renderSmartChip('Achievable', goal.achievable)}
+                ${renderSmartChip('Relevant', goal.relevant)}
+                ${renderSmartChip('Time-bound', goal.time_bound)}
+            </div>
+            <div class="goal-smart-text small text-muted">最終更新: ${formatDate(goal.progress_updated_at || goal.updated_at)}</div>
+        `;
+
+        card.querySelector('.goal-progress-save').addEventListener('click', () => {
+            const val = card.querySelector('.goal-progress-input').value;
+            updateGoalProgress(goal.id, val);
+        });
+
+        card.querySelector('.goal-edit-btn').addEventListener('click', () => fillGoalForm(goal));
+        card.querySelector('.goal-delete-btn').addEventListener('click', () => deleteGoal(goal.id));
+        container.appendChild(card);
+    });
+}
+
+function renderSmartChip(label, value) {
+    if (!value) return '';
+    return `<span class="goal-chip"><strong>${label}:</strong> ${value}</span>`;
+}
+
+function fillGoalForm(goal) {
+    document.getElementById('goal-id').value = goal.id;
+    document.getElementById('goal-title').value = goal.title || '';
+    document.getElementById('goal-specific').value = goal.specific || '';
+    document.getElementById('goal-measurable').value = goal.measurable || '';
+    document.getElementById('goal-achievable').value = goal.achievable || '';
+    document.getElementById('goal-relevant').value = goal.relevant || '';
+    document.getElementById('goal-timebound').value = goal.time_bound || '';
+    document.getElementById('goal-due').value = goal.due_date || '';
+    document.getElementById('goal-importance').value = goal.importance || 1;
+}
+
+function deleteGoal(goalId) {
+    if (!confirm('この目標を削除しますか？')) return;
+    fetch(`/api/goals/${goalId}`, { method: 'DELETE' })
+        .then(res => res.ok ? res.json() : Promise.reject())
+        .then(() => { loadGoals(); loadGoalSummary(); })
+        .catch(() => alert('削除に失敗しました'));
+}
+
+function updateGoalProgress(goalId, value) {
+    fetch(`/api/goals/${goalId}/progress`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ progress: value })
+    }).then(res => res.json()).then(data => {
+        if (data.warning) alert(data.warning);
+        loadGoals();
+        loadGoalSummary();
+    }).catch(() => alert('進捗の更新に失敗しました'));
+}
+
+function getGoalRisk(goal) {
+    const risks = [];
+    const now = new Date();
+    const due = goal.due_date ? new Date(goal.due_date) : null;
+    const updated = goal.progress_updated_at ? new Date(goal.progress_updated_at) : new Date(goal.updated_at);
+    const staleBorder = new Date();
+    staleBorder.setDate(now.getDate() - 7);
+
+    if (due && due < now && goal.progress < 100) {
+        risks.push('<span class="goal-risk-icon text-danger"><i class="bi bi-exclamation-triangle-fill"></i>期日超過</span>');
+    }
+    if (updated < staleBorder && goal.progress < 100) {
+        risks.push('<span class="goal-risk-icon text-warning"><i class="bi bi-pause-circle"></i>更新停滞</span>');
+    }
+    return risks;
+}
+
+function loadGoalSummary() {
+    fetch('/api/goals/summary')
+        .then(res => res.json())
+        .then(updateGoalSummaryUI)
+        .catch(() => {
+            const bar = document.getElementById('weekly-progress-bar');
+            if (bar) bar.style.width = '0%';
+        });
+}
+
+function updateGoalSummaryUI(summary) {
+    if (!summary || !summary.weekly) return;
+    const weekly = summary.weekly;
+    const daily = summary.daily || {};
+
+    const bar = document.getElementById('weekly-progress-bar');
+    const progressText = document.getElementById('weekly-progress-text');
+    const riskCount = document.getElementById('goal-risk-count');
+    const dailyRate = document.getElementById('daily-achievement');
+    const incomplete = document.getElementById('weekly-incomplete');
+    const riskList = document.getElementById('risk-goal-list');
+
+    if (bar) bar.style.width = `${weekly.achievementRate}%`;
+    if (progressText) progressText.textContent = `週次達成率: ${weekly.achievementRate}%`;
+    if (riskCount) riskCount.textContent = `リスク ${weekly.riskGoals.length}`;
+    if (dailyRate) dailyRate.textContent = `${daily.achievementRate || 0}%`;
+    if (incomplete) incomplete.textContent = weekly.incompleteCount;
+
+    if (riskList) {
+        riskList.innerHTML = '';
+        if (!weekly.riskGoals.length) {
+            riskList.innerHTML = '<div class="text-muted small">リスク目標はありません</div>';
+        } else {
+            weekly.riskGoals.forEach(goal => {
+                const el = document.createElement('div');
+                const labels = [];
+                if (goal.reasons.includes('overdue')) labels.push('期日超過');
+                if (goal.reasons.includes('stagnation')) labels.push('停滞');
+                el.className = 'risk-badge';
+                el.innerHTML = `<i class="bi bi-exclamation-diamond-fill me-1"></i>${goal.title} (${labels.join(' / ')})`;
+                riskList.appendChild(el);
+            });
+        }
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '未更新';
+    const date = new Date(dateStr);
+    if (isNaN(date)) return '未更新';
+    const y = date.getFullYear();
+    const m = ('0' + (date.getMonth() + 1)).slice(-2);
+    const d = ('0' + date.getDate()).slice(-2);
+    return `${y}/${m}/${d}`;
 }

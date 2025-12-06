@@ -35,6 +35,102 @@
         
         <div id="section-report" class="content-section">
             <div id="report-list-view">
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h5 class="card-title mb-0"><i class="bi bi-graph-up-arrow me-2"></i>週次進捗レポート</h5>
+                                    <span id="goal-risk-count" class="badge bg-danger">リスク 0</span>
+                                </div>
+                                <div class="progress mb-2" style="height: 14px;">
+                                    <div id="weekly-progress-bar" class="progress-bar" role="progressbar" style="width: 0%;"></div>
+                                </div>
+                                <p class="small text-muted mb-3" id="weekly-progress-text">最新の達成率を計算しています...</p>
+                                <div class="row text-center mb-3">
+                                    <div class="col border-end">
+                                        <div class="text-muted small">日次達成率</div>
+                                        <div class="fw-bold" id="daily-achievement">-</div>
+                                    </div>
+                                    <div class="col">
+                                        <div class="text-muted small">未完了目標</div>
+                                        <div class="fw-bold" id="weekly-incomplete">-</div>
+                                    </div>
+                                </div>
+                                <div id="risk-goal-list" class="d-flex flex-column gap-2"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="card shadow-sm h-100">
+                            <div class="card-body">
+                                <h5 class="card-title mb-3"><i class="bi bi-flag me-2"></i>目標を作成</h5>
+                                <form id="goal-form" class="goal-form">
+                                    <input type="hidden" id="goal-id">
+                                    <div class="mb-2">
+                                        <label class="form-label">タイトル</label>
+                                        <input type="text" id="goal-title" class="form-control" placeholder="例) ○○模試で偏差値〇アップ">
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label">Specific（具体的）</label>
+                                            <input type="text" id="goal-specific" class="form-control" placeholder="何をいつまでに">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label">Measurable（測定可能）</label>
+                                            <input type="text" id="goal-measurable" class="form-control" placeholder="テスト〇点など">
+                                        </div>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label">Achievable（達成可能）</label>
+                                            <input type="text" id="goal-achievable" class="form-control" placeholder="現状とのギャップ">
+                                        </div>
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label">Relevant（関連性）</label>
+                                            <input type="text" id="goal-relevant" class="form-control" placeholder="志望校や長期目標との関係">
+                                        </div>
+                                    </div>
+                                    <div class="row g-2">
+                                        <div class="col-md-6 mb-2">
+                                            <label class="form-label">Time-bound（期限）</label>
+                                            <input type="text" id="goal-timebound" class="form-control" placeholder="実施頻度や区切り">
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <label class="form-label">期日</label>
+                                            <input type="date" id="goal-due" class="form-control">
+                                        </div>
+                                        <div class="col-md-3 mb-2">
+                                            <label class="form-label">重要度</label>
+                                            <select id="goal-importance" class="form-select">
+                                                <option value="1">1 - 普通</option>
+                                                <option value="2">2</option>
+                                                <option value="3" selected>3 - 高</option>
+                                                <option value="4">4</option>
+                                                <option value="5">5 - 最優先</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="d-flex justify-content-end gap-2 mt-2">
+                                        <button type="button" id="goal-cancel" class="btn btn-outline-secondary btn-sm">クリア</button>
+                                        <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4" id="goal-list-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0"><i class="bi bi-bullseye me-2"></i>目標一覧</h5>
+                            <small class="text-muted">SMART要素と進捗を確認</small>
+                        </div>
+                        <div id="goal-list" class="d-flex flex-column gap-3"></div>
+                    </div>
+                </div>
+
                 <h2 class="mb-4 border-bottom pb-2"><i class="bi bi-files"></i> 特訓レポート一覧</h2>
                 <div id="report-grid-container" class="report-grid"></div>
             </div>
